@@ -19,9 +19,9 @@ interface LoginPageProps {
 export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicValidator }) => {
   const { login, isSupabase } = useAuth();
 
-  const [activeRoleTab, setActiveRoleTab] = useState<UserRole>('MEDICO_LAUDISTA');
-  const [email, setEmail] = useState('medico@amlaudos.com.br');
-  const [password, setPassword] = useState('123456');
+  const [activeRoleTab, setActiveRoleTab] = useState<UserRole>('ADMIN');
+  const [email, setEmail] = useState('g2autodev@gmail.com');
+  const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -47,7 +47,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicValidator }) =
     setIsLoading(false);
 
     if (!result.success) {
-      setErrorMessage(result.error || 'Credenciais inválidas. Tente novamente.');
+      let msg = result.error || 'Credenciais inválidas. Tente novamente.';
+      if (msg.toLowerCase().includes('email not confirmed')) {
+        msg = 'Este e-mail ainda não foi confirmado no Supabase. Confirme o usuário no painel do Supabase ou execute o comando SQL de confirmação.';
+      } else if (msg.toLowerCase().includes('invalid login credentials')) {
+        msg = 'E-mail ou senha incorretos. Verifique suas credenciais.';
+      }
+      setErrorMessage(msg);
     }
   };
 

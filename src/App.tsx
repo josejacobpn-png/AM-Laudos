@@ -18,8 +18,15 @@ import './App.css';
 function MainAppContent() {
   const { isAuthenticated, currentUser, role } = useAuth();
 
+  // Limpar dados de teste antigos do storage ao inicializar
+  useEffect(() => {
+    localStorage.removeItem('am_laudos_clinics_v1');
+    localStorage.removeItem('am_laudos_doctors_v1');
+    localStorage.removeItem('am_laudos_exams_v1');
+  }, []);
+
   const [clinics, setClinics] = useState<Clinic[]>(() => {
-    const saved = localStorage.getItem('am_laudos_clinics_v1');
+    const saved = localStorage.getItem('am_laudos_clinics_v2');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -31,7 +38,7 @@ function MainAppContent() {
   });
 
   const [doctors, setDoctors] = useState<UserProfile[]>(() => {
-    const saved = localStorage.getItem('am_laudos_doctors_v1');
+    const saved = localStorage.getItem('am_laudos_doctors_v2');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -43,7 +50,7 @@ function MainAppContent() {
   });
 
   const [exams, setExams] = useState<Exam[]>(() => {
-    const saved = localStorage.getItem('am_laudos_exams_v1');
+    const saved = localStorage.getItem('am_laudos_exams_v2');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -55,7 +62,7 @@ function MainAppContent() {
   });
 
   // Visão padrão com base no perfil do usuário logado
-  const [currentView, setCurrentView] = useState<'laudista' | 'clinica' | 'admin' | 'validador'>('laudista');
+  const [currentView, setCurrentView] = useState<'laudista' | 'clinica' | 'admin' | 'validador'>('admin');
   const [selectedExamToReport, setSelectedExamToReport] = useState<Exam | null>(null);
   const [viewingReportExam, setViewingReportExam] = useState<Exam | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -63,17 +70,17 @@ function MainAppContent() {
 
   // Sincronizar exames no localStorage
   useEffect(() => {
-    localStorage.setItem('am_laudos_exams_v1', JSON.stringify(exams));
+    localStorage.setItem('am_laudos_exams_v2', JSON.stringify(exams));
   }, [exams]);
 
   // Sincronizar clínicas no localStorage
   useEffect(() => {
-    localStorage.setItem('am_laudos_clinics_v1', JSON.stringify(clinics));
+    localStorage.setItem('am_laudos_clinics_v2', JSON.stringify(clinics));
   }, [clinics]);
 
   // Sincronizar médicos no localStorage
   useEffect(() => {
-    localStorage.setItem('am_laudos_doctors_v1', JSON.stringify(doctors));
+    localStorage.setItem('am_laudos_doctors_v2', JSON.stringify(doctors));
   }, [doctors]);
 
   // Ajustar visão inicial ao logar ou mudar de perfil
