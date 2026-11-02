@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { 
-  Activity, 
   Building2, 
   ShieldCheck, 
   Stethoscope, 
@@ -13,6 +12,7 @@ import {
 } from 'lucide-react';
 import type { Exam } from '../types';
 import { useAuth } from '../context/AuthContext';
+import logoImg from '../assets/logo-amlaudos.jpg';
 
 interface HeaderProps {
   currentView: 'laudista' | 'clinica' | 'admin' | 'validador';
@@ -47,7 +47,7 @@ export const Header: React.FC<HeaderProps> = ({
   return (
     <header className="main-header">
       <div className="header-container">
-        {/* Logo & Marca */}
+        {/* Logo & Marca Oficial */}
         <div 
           className="brand-group" 
           onClick={() => {
@@ -56,17 +56,13 @@ export const Header: React.FC<HeaderProps> = ({
             else onViewChange('laudista');
           }} 
           style={{ cursor: 'pointer' }}
+          title="Ir para o painel inicial"
         >
-          <div className="logo-icon-wrap">
-            <Activity className="brand-icon" size={26} />
-          </div>
-          <div>
-            <div className="brand-title">
-              <span>AM</span> Laudos
-              <span className="brand-tag">PRO</span>
-            </div>
-            <div className="brand-subtitle">Portal de Telemedicina & Laudos Digitais</div>
-          </div>
+          <img 
+            src={logoImg} 
+            alt="AM Laudos - Telemedicina e Laudos Médicos Digitais" 
+            className="header-brand-logo" 
+          />
         </div>
 
         {/* Alerta de Emergência Crítica no Cabeçalho (Visível para Médicos e Admins) */}

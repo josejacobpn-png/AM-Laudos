@@ -11,6 +11,7 @@ import {
 import type { Exam } from '../types';
 import { formatDateTimeBR } from '../utils/cryptoSim';
 import { generateLaudoPdf } from '../utils/pdfGenerator';
+import logoImg from '../assets/logo-amlaudos.jpg';
 
 interface ReportViewModalProps {
   isOpen: boolean;
@@ -92,9 +93,8 @@ export const ReportViewModal: React.FC<ReportViewModalProps> = ({
           <div className="report-a4-sheet">
             {/* 1. Cabeçalho Oficial */}
             <div className="sheet-top-header">
-              <div className="brand-header-text">
-                <h2>AM LAUDOS | TELEMEDICINA & TELEDIASTÓSTICO</h2>
-                <p>Serviço Especializado de Eletrocardiografia Digital e Telediagnóstico</p>
+              <div className="sheet-brand-wrap">
+                <img src={logoImg} alt="AM Laudos" className="sheet-header-logo-img" />
               </div>
               <div className="sheet-meta-box">
                 <div><strong>Protocolo:</strong> {exam.protocolNumber}</div>
