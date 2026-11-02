@@ -2668,6 +2668,26 @@
   margin-bottom: 1.75rem;
 }
 
+.login-logo-img-wrap {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  margin: 0 auto 0.75rem auto;
+  max-width: 290px;
+}
+
+.login-brand-logo-img {
+  width: 100%;
+  max-height: 85px;
+  object-fit: contain;
+  filter: drop-shadow(0 2px 8px rgba(0, 0, 0, 0.05));
+  transition: transform 0.2s ease;
+}
+
+.login-brand-logo-img:hover {
+  transform: scale(1.02);
+}
+
 .login-logo-box {
   width: 56px;
   height: 56px;

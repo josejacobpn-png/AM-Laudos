@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { 
-  Activity, 
   Stethoscope, 
   Building2, 
   ShieldCheck, 
@@ -11,6 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../types';
+import logoImg from '../../assets/logo-amlaudos.png';
 
 interface LoginPageProps {
   onOpenPublicValidator: () => void;
@@ -60,10 +60,13 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicValidator }) =
       <div className="login-central-card animate-fade-in">
         {/* Topo do Card de Login */}
         <div className="login-header">
-          <div className="login-logo-box">
-            <Activity size={32} className="login-logo-icon" />
+          <div className="login-logo-img-wrap">
+            <img 
+              src={logoImg} 
+              alt="AM Laudos - Saúde ao Seu Alcance" 
+              className="login-brand-logo-img" 
+            />
           </div>
-          <h1>AM <span>Laudos</span></h1>
           <p className="login-tagline">Portal Seguro de Telemedicina Cardiológica & Telediagnóstico</p>
 
           <div className="connection-badge">
