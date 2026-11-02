@@ -58,7 +58,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newDocUf, setNewDocUf] = useState('SP');
   const [newDocRqe, setNewDocRqe] = useState('');
   const [newDocEspecialidade, setNewDocEspecialidade] = useState('Cardiologia Clínica e Eletrofisiologia');
-  const [newDocCertificado, setNewDocCertificado] = useState<'A1_ARQUIVO' | 'A3_NUVEM_BIRD_ID' | 'A3_TOKEN_NEOID'>('A3_NUVEM_BIRD_ID');
   const [newDocTelefone, setNewDocTelefone] = useState('');
 
   // Métricas
@@ -107,7 +106,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       uf: newDocUf,
       rqe: newDocRqe.trim() || undefined,
       specialty: newDocEspecialidade,
-      certificateType: newDocCertificado,
       phone: newDocTelefone.trim() || undefined
     };
 
@@ -124,7 +122,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setNewDocUf('SP');
     setNewDocRqe('');
     setNewDocEspecialidade('Cardiologia Clínica e Eletrofisiologia');
-    setNewDocCertificado('A3_NUVEM_BIRD_ID');
     setNewDocTelefone('');
   };
 
@@ -327,7 +324,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <th>E-mail de Acesso</th>
                   <th>CRM / UF</th>
                   <th>RQE Especialidade</th>
-                  <th>Certificado Digital ICP-Brasil</th>
+                  <th>Telefone / Contato</th>
                   <th>Status no CFM</th>
                 </tr>
               </thead>
@@ -349,15 +346,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <code>CRM {d.crm}-{d.uf}</code>
                       </td>
                       <td>{d.rqe ? `${d.rqe} (${d.specialty || 'Cardiologia'})` : (d.specialty || 'Cardiologia')}</td>
-                      <td>
-                        <span className="tag-cert">
-                          {d.certificateType === 'A1_ARQUIVO' 
-                            ? 'A1 Arquivo (.pfx) Ativo' 
-                            : d.certificateType === 'A3_TOKEN_NEOID' 
-                            ? 'A3 NeoID Token Ativo' 
-                            : 'A3 Nuvem Bird ID Ativo'}
-                        </span>
-                      </td>
+                      <td>{d.phone || '—'}</td>
                       <td>
                         <span className="badge-status-ready">
                           <CheckCircle size={13} /> Regular
@@ -683,22 +672,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <option value="Ergometria e Métodos Gráficos">Ergometria e Métodos Gráficos</option>
                   <option value="Ecocardiografia e Imagem Cardiovascular">Ecocardiografia e Imagem Cardiovascular</option>
                 </select>
-              </div>
-
-              <div className="form-group">
-                <label>Padrão de Certificado Digital ICP-Brasil *</label>
-                <select
-                  value={newDocCertificado}
-                  onChange={(e) => setNewDocCertificado(e.target.value as any)}
-                  className="form-control"
-                >
-                  <option value="A3_NUVEM_BIRD_ID">Certificado em Nuvem A3 (Bird ID / SafeWeb / Valid)</option>
-                  <option value="A1_ARQUIVO">Certificado A1 em Arquivo (.pfx / .p12)</option>
-                  <option value="A3_TOKEN_NEOID">Certificado A3 Físico (Token USB / Smartcard / NeoID)</option>
-                </select>
-                <small style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
-                  Conforme MP nº 2.200-2/2001 e Resolução CFM nº 2.299/2021.
-                </small>
               </div>
 
               <div className="modal-footer">
