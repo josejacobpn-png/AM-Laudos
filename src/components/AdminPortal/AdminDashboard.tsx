@@ -1,0 +1,722 @@
+import React, { useState } from 'react';
+import { 
+  Building2, 
+  Stethoscope, 
+  ShieldCheck, 
+  Plus, 
+  Search, 
+  CheckCircle, 
+  FileText, 
+  AlertTriangle,
+  Layers
+} from 'lucide-react';
+import type { Clinic, Exam, UserProfile } from '../../types';
+import { DEMO_USERS } from '../../data/mockUsers';
+import { formatDateTimeBR } from '../../utils/cryptoSim';
+
+interface AdminDashboardProps {
+  clinics: Clinic[];
+  exams: Exam[];
+  doctors?: UserProfile[];
+  onAddClinic: (newClinic: Clinic) => void;
+  onAddDoctor?: (newDoctor: UserProfile) => void;
+  onViewReport: (exam: Exam) => void;
+}
+
+export const AdminDashboard: React.FC<AdminDashboardProps> = ({
+  clinics,
+  exams,
+  doctors,
+  onAddClinic,
+  onAddDoctor,
+  onViewReport
+}) => {
+  const [activeTab, setActiveTab] = useState<'clinicas' | 'medicos' | 'auditoria' | 'exames_geral'>('clinicas');
+  const [searchTerm, setSearchTerm] = useState('');
+  const [isNewClinicModalOpen, setIsNewClinicModalOpen] = useState(false);
+
+  // Form states para nova clínica
+  const [newNome, setNewNome] = useState('');
+  const [newCnes, setNewCnes] = useState('');
+  const [newCidade, setNewCidade] = useState('');
+  const [newEstado, setNewEstado] = useState('SP');
+  const [newTelefone, setNewTelefone] = useState('');
+
+  // Médicos cadastrados
+  const [localDoctors, setLocalDoctors] = useState<UserProfile[]>(() => {
+    return DEMO_USERS.filter(u => u.role === 'MEDICO_LAUDISTA');
+  });
+
+  const doctorsList = doctors || localDoctors;
+
+  // Estados para cadastro e busca de médicos
+  const [isNewDoctorModalOpen, setIsNewDoctorModalOpen] = useState(false);
+  const [doctorSearchTerm, setDoctorSearchTerm] = useState('');
+  const [newDocNome, setNewDocNome] = useState('');
+  const [newDocEmail, setNewDocEmail] = useState('');
+  const [newDocCrm, setNewDocCrm] = useState('');
+  const [newDocUf, setNewDocUf] = useState('SP');
+  const [newDocRqe, setNewDocRqe] = useState('');
+  const [newDocEspecialidade, setNewDocEspecialidade] = useState('Cardiologia Clínica e Eletrofisiologia');
+  const [newDocCertificado, setNewDocCertificado] = useState<'A1_ARQUIVO' | 'A3_NUVEM_BIRD_ID' | 'A3_TOKEN_NEOID'>('A3_NUVEM_BIRD_ID');
+  const [newDocTelefone, setNewDocTelefone] = useState('');
+
+  // Métricas
+  const totalClinics = clinics.length;
+  const totalDoctors = doctorsList.length;
+  const totalExams = exams.length;
+  const criticalExams = exams.filter(e => e.priority === 'EMERGENCIA' && e.status === 'PENDENTE').length;
+
+  const handleCreateClinic = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newNome || !newCnes) return;
+
+    const created: Clinic = {
+      id: `cli-${Date.now()}`,
+      name: newNome,
+      cnes: newCnes,
+      city: newCidade || 'São Paulo',
+      state: newEstado || 'SP',
+      phone: newTelefone || '(11) 3000-0000',
+      active: true
+    };
+
+    onAddClinic(created);
+    setIsNewClinicModalOpen(false);
+    setNewNome('');
+    setNewCnes('');
+    setNewCidade('');
+    setNewTelefone('');
+  };
+
+  const handleCreateDoctor = (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!newDocNome || !newDocCrm || !newDocEmail) return;
+
+    const trimmedName = newDocNome.trim();
+    const formattedName = trimmedName.startsWith('Dr.') || trimmedName.startsWith('Dra.')
+      ? trimmedName
+      : `Dr(a). ${trimmedName}`;
+
+    const created: UserProfile = {
+      id: `usr-medico-${Date.now()}`,
+      name: formattedName,
+      email: newDocEmail.trim().toLowerCase(),
+      role: 'MEDICO_LAUDISTA',
+      crm: newDocCrm.trim(),
+      uf: newDocUf,
+      rqe: newDocRqe.trim() || undefined,
+      specialty: newDocEspecialidade,
+      certificateType: newDocCertificado,
+      phone: newDocTelefone.trim() || undefined
+    };
+
+    if (onAddDoctor) {
+      onAddDoctor(created);
+    } else {
+      setLocalDoctors(prev => [...prev, created]);
+    }
+
+    setIsNewDoctorModalOpen(false);
+    setNewDocNome('');
+    setNewDocEmail('');
+    setNewDocCrm('');
+    setNewDocUf('SP');
+    setNewDocRqe('');
+    setNewDocEspecialidade('Cardiologia Clínica e Eletrofisiologia');
+    setNewDocCertificado('A3_NUVEM_BIRD_ID');
+    setNewDocTelefone('');
+  };
+
+  return (
+    <div className="admin-portal-wrap animate-fade-in">
+      {/* Banner de Gestão e Governança */}
+      <div className="admin-hero-card">
+        <div className="admin-hero-content">
+          <div className="admin-badge-icon">
+            <ShieldCheck size={32} />
+          </div>
+          <div>
+            <h2>Painel de Gestão & Governança AM Laudos</h2>
+            <p>Controle centralizado de postos conveniados, credenciamento médico e auditoria técnica</p>
+          </div>
+        </div>
+
+        <div className="admin-sla-badge">
+          <span className="sla-rate">99.2%</span>
+          <span className="sla-label">Conformidade SLA 2026</span>
+        </div>
+      </div>
+
+      {/* Métricas Globais do Sistema */}
+      <div className="metrics-grid">
+        <div className="metric-card">
+          <div className="metric-icon blue">
+            <Building2 size={24} />
+          </div>
+          <div>
+            <span className="metric-value">{totalClinics}</span>
+            <span className="metric-label">Clínicas Conectadas</span>
+          </div>
+        </div>
+
+        <div className="metric-card">
+          <div className="metric-icon teal">
+            <Stethoscope size={24} />
+          </div>
+          <div>
+            <span className="metric-value">{totalDoctors}</span>
+            <span className="metric-label">Cardiologistas Laudistas</span>
+          </div>
+        </div>
+
+        <div className="metric-card">
+          <div className="metric-icon green">
+            <FileText size={24} />
+          </div>
+          <div>
+            <span className="metric-value">{totalExams}</span>
+            <span className="metric-label">Exames Transmitidos</span>
+          </div>
+        </div>
+
+        <div className="metric-card">
+          <div className="metric-icon red">
+            <AlertTriangle size={24} />
+          </div>
+          <div>
+            <span className="metric-value">{criticalExams}</span>
+            <span className="metric-label">Urgências Ativas no Sistema</span>
+          </div>
+        </div>
+      </div>
+
+      {/* Navegação de Abas do Administrador */}
+      <div className="admin-nav-tabs">
+        <button
+          className={`admin-tab-btn ${activeTab === 'clinicas' ? 'active' : ''}`}
+          onClick={() => setActiveTab('clinicas')}
+        >
+          <Building2 size={17} />
+          <span>Clínicas Conveniadas ({clinics.length})</span>
+        </button>
+
+        <button
+          className={`admin-tab-btn ${activeTab === 'medicos' ? 'active' : ''}`}
+          onClick={() => setActiveTab('medicos')}
+        >
+          <Stethoscope size={17} />
+          <span>Corpo Clínico Laudista ({doctorsList.length})</span>
+        </button>
+
+        <button
+          className={`admin-tab-btn ${activeTab === 'exames_geral' ? 'active' : ''}`}
+          onClick={() => setActiveTab('exames_geral')}
+        >
+          <Layers size={17} />
+          <span>Monitor Global de Exames ({exams.length})</span>
+        </button>
+
+        <button
+          className={`admin-tab-btn ${activeTab === 'auditoria' ? 'active' : ''}`}
+          onClick={() => setActiveTab('auditoria')}
+        >
+          <ShieldCheck size={17} />
+          <span>Trilha de Auditoria (LGPD/CFM)</span>
+        </button>
+      </div>
+
+      {/* Aba 1: Clínicas Conveniadas */}
+      {activeTab === 'clinicas' && (
+        <div className="table-card animate-fade-in">
+          <div className="table-header-toolbar">
+            <div className="search-input-wrap">
+              <Search size={18} className="search-icon" />
+              <input
+                type="text"
+                placeholder="Buscar clínica por nome, cidade ou CNES..."
+                value={searchTerm}
+                onChange={(e) => setSearchTerm(e.target.value)}
+                className="search-field"
+              />
+            </div>
+
+            <button
+              className="btn-add-primary"
+              onClick={() => setIsNewClinicModalOpen(true)}
+            >
+              <Plus size={17} />
+              <span>Cadastrar Nova Clínica</span>
+            </button>
+          </div>
+
+          <div className="table-responsive">
+            <table className="custom-table">
+              <thead>
+                <tr>
+                  <th>Nome da Clínica / Posto</th>
+                  <th>CNES</th>
+                  <th>Cidade / UF</th>
+                  <th>Telefone</th>
+                  <th>Exames Emitidos</th>
+                  <th>Status</th>
+                </tr>
+              </thead>
+              <tbody>
+                {clinics
+                  .filter(c => c.name.toLowerCase().includes(searchTerm.toLowerCase()) || c.cnes.includes(searchTerm))
+                  .map(c => {
+                    const count = exams.filter(e => e.clinicId === c.id).length;
+                    return (
+                      <tr key={c.id}>
+                        <td>
+                          <strong>{c.name}</strong>
+                        </td>
+                        <td>
+                          <code>{c.cnes}</code>
+                        </td>
+                        <td>{c.city} / {c.state}</td>
+                        <td>{c.phone}</td>
+                        <td>
+                          <span className="exam-count-badge">{count} exames</span>
+                        </td>
+                        <td>
+                          <span className="badge-status-ready">
+                            <CheckCircle size={13} /> Ativa
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Aba 2: Corpo Clínico Laudista */}
+      {activeTab === 'medicos' && (
+        <div className="table-card animate-fade-in">
+          <div className="table-header-toolbar">
+            <div className="search-input-wrap">
+              <Search size={18} className="search-icon" />
+              <input
+                type="text"
+                placeholder="Buscar médico por nome, CRM, UF ou especialidade..."
+                value={doctorSearchTerm}
+                onChange={(e) => setDoctorSearchTerm(e.target.value)}
+                className="search-field"
+              />
+            </div>
+
+            <button
+              type="button"
+              className="btn-add-primary"
+              onClick={() => setIsNewDoctorModalOpen(true)}
+            >
+              <Plus size={17} />
+              <span>Cadastrar Novo Médico Laudista</span>
+            </button>
+          </div>
+
+          <div className="table-responsive">
+            <table className="custom-table">
+              <thead>
+                <tr>
+                  <th>Nome do Médico / Especialista</th>
+                  <th>E-mail de Acesso</th>
+                  <th>CRM / UF</th>
+                  <th>RQE Especialidade</th>
+                  <th>Certificado Digital ICP-Brasil</th>
+                  <th>Status no CFM</th>
+                </tr>
+              </thead>
+              <tbody>
+                {doctorsList
+                  .filter(d => 
+                    d.name.toLowerCase().includes(doctorSearchTerm.toLowerCase()) ||
+                    (d.crm && d.crm.includes(doctorSearchTerm)) ||
+                    (d.email && d.email.toLowerCase().includes(doctorSearchTerm.toLowerCase())) ||
+                    (d.specialty && d.specialty.toLowerCase().includes(doctorSearchTerm.toLowerCase()))
+                  )
+                  .map(d => (
+                    <tr key={d.id}>
+                      <td>
+                        <strong>{d.name}</strong>
+                      </td>
+                      <td>{d.email}</td>
+                      <td>
+                        <code>CRM {d.crm}-{d.uf}</code>
+                      </td>
+                      <td>{d.rqe ? `${d.rqe} (${d.specialty || 'Cardiologia'})` : (d.specialty || 'Cardiologia')}</td>
+                      <td>
+                        <span className="tag-cert">
+                          {d.certificateType === 'A1_ARQUIVO' 
+                            ? 'A1 Arquivo (.pfx) Ativo' 
+                            : d.certificateType === 'A3_TOKEN_NEOID' 
+                            ? 'A3 NeoID Token Ativo' 
+                            : 'A3 Nuvem Bird ID Ativo'}
+                        </span>
+                      </td>
+                      <td>
+                        <span className="badge-status-ready">
+                          <CheckCircle size={13} /> Regular
+                        </span>
+                      </td>
+                    </tr>
+                  ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Aba 3: Monitor Global de Exames */}
+      {activeTab === 'exames_geral' && (
+        <div className="table-card animate-fade-in">
+          <div className="table-header-toolbar">
+            <h3>Todos os Exames no Sistema em Tempo Real</h3>
+          </div>
+
+          <div className="table-responsive">
+            <table className="custom-table">
+              <thead>
+                <tr>
+                  <th>Protocolo</th>
+                  <th>Paciente</th>
+                  <th>Clínica Solicitante</th>
+                  <th>Prioridade</th>
+                  <th>Status</th>
+                  <th>Recebido em</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody>
+                {exams.map(e => (
+                  <tr key={e.id}>
+                    <td><code>{e.protocolNumber}</code></td>
+                    <td><strong>{e.patient.name}</strong></td>
+                    <td>{e.clinicName}</td>
+                    <td>
+                      <span className={`badge-priority ${e.priority.toLowerCase()}`}>
+                        {e.priority}
+                      </span>
+                    </td>
+                    <td>
+                      {e.status === 'LAUDADO' ? (
+                        <span className="badge-status-ready">Laudado</span>
+                      ) : (
+                        <span className="badge-status-waiting">{e.status}</span>
+                      )}
+                    </td>
+                    <td>{formatDateTimeBR(e.receivedAt)}</td>
+                    <td>
+                      {e.status === 'LAUDADO' && (
+                        <button
+                          className="btn-action view"
+                          onClick={() => onViewReport(e)}
+                        >
+                          Ver Laudo
+                        </button>
+                      )}
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Aba 4: Trilha de Auditoria (LGPD e CFM) */}
+      {activeTab === 'auditoria' && (
+        <div className="table-card animate-fade-in">
+          <div className="table-header-toolbar">
+            <h3>Logs de Auditoria Imutáveis (LGPD & Resolução CFM nº 2.314/2022)</h3>
+          </div>
+
+          <div className="table-responsive">
+            <table className="custom-table">
+              <thead>
+                <tr>
+                  <th>Data / Hora (Brasília)</th>
+                  <th>Usuário</th>
+                  <th>Perfil</th>
+                  <th>Ação Realizada</th>
+                  <th>Registro / Protocolo</th>
+                  <th>Endereço IP</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr>
+                  <td>{formatDateTimeBR(new Date(Date.now() - 5 * 60 * 1000).toISOString())}</td>
+                  <td>Dr. Fernando Albuquerque</td>
+                  <td>Médico Laudista</td>
+                  <td><strong>ASSINATURA DIGITAL ICP-BRASIL</strong></td>
+                  <td><code>ECG-2026-948102</code></td>
+                  <td>187.32.19.45</td>
+                </tr>
+                <tr>
+                  <td>{formatDateTimeBR(new Date(Date.now() - 25 * 60 * 1000).toISOString())}</td>
+                  <td>Posto Central São Lucas</td>
+                  <td>Clínica / Posto</td>
+                  <td><strong>UPLOAD DE EXAME NATIVO (PDF)</strong></td>
+                  <td><code>ECG-2026-481920</code></td>
+                  <td>201.86.11.90</td>
+                </tr>
+                <tr>
+                  <td>{formatDateTimeBR(new Date(Date.now() - 50 * 60 * 1000).toISOString())}</td>
+                  <td>Gestor Clínico & Admin</td>
+                  <td>Administrador</td>
+                  <td><strong>CONSULTA AUDITORIA SLA</strong></td>
+                  <td>Fila Geral</td>
+                  <td>177.102.34.12</td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Cadastro de Nova Clínica */}
+      {isNewClinicModalOpen && (
+        <div className="modal-backdrop animate-fade-in">
+          <div className="modal-dialog" style={{ maxWidth: 540 }}>
+            <div className="modal-header">
+              <div className="modal-title-wrap">
+                <Building2 size={22} className="text-primary" />
+                <h3>Cadastrar Nova Unidade / Clínica</h3>
+              </div>
+              <button className="btn-close" onClick={() => setIsNewClinicModalOpen(false)}>×</button>
+            </div>
+
+            <form onSubmit={handleCreateClinic} className="modal-body-form">
+              <div className="form-group">
+                <label>Razão Social / Nome Fantasia *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Clínica CardioVida Diagnósticos"
+                  value={newNome}
+                  onChange={(e) => setNewNome(e.target.value)}
+                  className="form-control"
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group flex-1">
+                  <label>CNES (Cadastro Nacional) *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="7 dígitos (ex: 8492019)"
+                    value={newCnes}
+                    onChange={(e) => setNewCnes(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+                <div className="form-group flex-1">
+                  <label>Telefone de Contato</label>
+                  <input
+                    type="text"
+                    placeholder="(11) 3456-7890"
+                    value={newTelefone}
+                    onChange={(e) => setNewTelefone(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group flex-2">
+                  <label>Cidade</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: São Paulo"
+                    value={newCidade}
+                    onChange={(e) => setNewCidade(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+                <div className="form-group flex-1">
+                  <label>Estado (UF)</label>
+                  <select
+                    value={newEstado}
+                    onChange={(e) => setNewEstado(e.target.value)}
+                    className="form-control"
+                  >
+                    <option value="SP">SP</option>
+                    <option value="RJ">RJ</option>
+                    <option value="MG">MG</option>
+                    <option value="PR">PR</option>
+                    <option value="RS">RS</option>
+                    <option value="BA">BA</option>
+                    <option value="DF">DF</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setIsNewClinicModalOpen(false)}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary-action">
+                  Salvar e Credenciar Unidade
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Cadastro de Novo Médico Laudista */}
+      {isNewDoctorModalOpen && (
+        <div className="modal-backdrop animate-fade-in">
+          <div className="modal-dialog" style={{ maxWidth: 580 }}>
+            <div className="modal-header">
+              <div className="modal-title-wrap">
+                <Stethoscope size={22} className="text-primary" />
+                <h3>Cadastrar Novo Médico Laudista</h3>
+              </div>
+              <button className="btn-close" onClick={() => setIsNewDoctorModalOpen(false)}>×</button>
+            </div>
+
+            <form onSubmit={handleCreateDoctor} className="modal-body-form">
+              <div className="form-group">
+                <label>Nome Completo do Médico(a) *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Dra. Juliana Silveira Mendes"
+                  value={newDocNome}
+                  onChange={(e) => setNewDocNome(e.target.value)}
+                  className="form-control"
+                />
+              </div>
+
+              <div className="form-group">
+                <label>E-mail Institucional de Acesso *</label>
+                <input
+                  type="email"
+                  required
+                  placeholder="Ex: juliana.mendes@amlaudos.com.br"
+                  value={newDocEmail}
+                  onChange={(e) => setNewDocEmail(e.target.value)}
+                  className="form-control"
+                />
+                <small style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
+                  Este e-mail será utilizado pelo médico para fazer login na plataforma.
+                </small>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group flex-2">
+                  <label>Número do CRM *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: 148.920"
+                    value={newDocCrm}
+                    onChange={(e) => setNewDocCrm(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+                <div className="form-group flex-1">
+                  <label>UF do CRM *</label>
+                  <select
+                    value={newDocUf}
+                    onChange={(e) => setNewDocUf(e.target.value)}
+                    className="form-control"
+                  >
+                    <option value="SP">SP</option>
+                    <option value="RJ">RJ</option>
+                    <option value="MG">MG</option>
+                    <option value="RS">RS</option>
+                    <option value="PR">PR</option>
+                    <option value="BA">BA</option>
+                    <option value="SC">SC</option>
+                    <option value="GO">GO</option>
+                    <option value="DF">DF</option>
+                    <option value="PE">PE</option>
+                    <option value="CE">CE</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group flex-1">
+                  <label>RQE (Registro Qualificação Especialista)</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: 31045"
+                    value={newDocRqe}
+                    onChange={(e) => setNewDocRqe(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+                <div className="form-group flex-1">
+                  <label>Telefone / WhatsApp Profissional</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: (11) 98765-4321"
+                    value={newDocTelefone}
+                    onChange={(e) => setNewDocTelefone(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Especialidade Médica Principal</label>
+                <select
+                  value={newDocEspecialidade}
+                  onChange={(e) => setNewDocEspecialidade(e.target.value)}
+                  className="form-control"
+                >
+                  <option value="Cardiologia Clínica e Eletrofisiologia">Cardiologia Clínica e Eletrofisiologia</option>
+                  <option value="Cardiologia Clínica">Cardiologia Clínica</option>
+                  <option value="Eletrocardiografia de Alta Resolução">Eletrocardiografia de Alta Resolução</option>
+                  <option value="Ergometria e Métodos Gráficos">Ergometria e Métodos Gráficos</option>
+                  <option value="Ecocardiografia e Imagem Cardiovascular">Ecocardiografia e Imagem Cardiovascular</option>
+                </select>
+              </div>
+
+              <div className="form-group">
+                <label>Padrão de Certificado Digital ICP-Brasil *</label>
+                <select
+                  value={newDocCertificado}
+                  onChange={(e) => setNewDocCertificado(e.target.value as any)}
+                  className="form-control"
+                >
+                  <option value="A3_NUVEM_BIRD_ID">Certificado em Nuvem A3 (Bird ID / SafeWeb / Valid)</option>
+                  <option value="A1_ARQUIVO">Certificado A1 em Arquivo (.pfx / .p12)</option>
+                  <option value="A3_TOKEN_NEOID">Certificado A3 Físico (Token USB / Smartcard / NeoID)</option>
+                </select>
+                <small style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
+                  Conforme MP nº 2.200-2/2001 e Resolução CFM nº 2.299/2021.
+                </small>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setIsNewDoctorModalOpen(false)}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" className="btn-primary-action">
+                  Salvar e Habilitar Médico Laudista
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+    </div>
+  );
+};
