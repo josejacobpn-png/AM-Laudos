@@ -13,6 +13,7 @@ import {
 import type { Clinic, Exam, UserProfile } from '../../types';
 import { DEMO_USERS } from '../../data/mockUsers';
 import { formatDateTimeBR } from '../../utils/cryptoSim';
+import { supabase, isSupabaseConfigured } from '../../services/supabase';
 
 interface AdminDashboardProps {
   clinics: Clinic[];
@@ -54,11 +55,14 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [doctorSearchTerm, setDoctorSearchTerm] = useState('');
   const [newDocNome, setNewDocNome] = useState('');
   const [newDocEmail, setNewDocEmail] = useState('');
+  const [newDocSenha, setNewDocSenha] = useState('');
   const [newDocCrm, setNewDocCrm] = useState('');
   const [newDocUf, setNewDocUf] = useState('SP');
   const [newDocRqe, setNewDocRqe] = useState('');
   const [newDocEspecialidade, setNewDocEspecialidade] = useState('Cardiologia Clínica e Eletrofisiologia');
   const [newDocTelefone, setNewDocTelefone] = useState('');
+  const [isSubmittingDoctor, setIsSubmittingDoctor] = useState(false);
+  const [doctorFormError, setDoctorFormError] = useState('');
 
   // Métricas
   const totalClinics = clinics.length;
@@ -88,19 +92,68 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setNewTelefone('');
   };
 
-  const handleCreateDoctor = (e: React.FormEvent) => {
+  const handleCreateDoctor = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!newDocNome || !newDocCrm || !newDocEmail) return;
+
+    if (!newDocSenha || newDocSenha.length < 6) {
+      setDoctorFormError('A senha de acesso do médico deve ter no mínimo 6 caracteres.');
+      return;
+    }
+
+    setDoctorFormError('');
+    setIsSubmittingDoctor(true);
 
     const trimmedName = newDocNome.trim();
     const formattedName = trimmedName.startsWith('Dr.') || trimmedName.startsWith('Dra.')
       ? trimmedName
       : `Dr(a). ${trimmedName}`;
+    const cleanEmail = newDocEmail.trim().toLowerCase();
+
+    let createdId = `usr-medico-${Date.now()}`;
+
+    // Sincronizar criação no Supabase Auth se estiver ativo
+    if (isSupabaseConfigured && supabase) {
+      try {
+        const { data: authData, error: authErr } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password: newDocSenha,
+          options: {
+            data: {
+              nome_completo: formattedName,
+              tipo: 'MEDICO_LAUDISTA',
+              crm: newDocCrm.trim(),
+              uf_crm: newDocUf,
+              rqe: newDocRqe.trim() || undefined,
+              especialidade: newDocEspecialidade
+            }
+          }
+        });
+
+        if (authErr) {
+          console.warn('Aviso Supabase Auth ao registrar médico:', authErr.message);
+        } else if (authData.user) {
+          createdId = authData.user.id;
+          await supabase.from('perfis').upsert({
+            id: authData.user.id,
+            nome_completo: formattedName,
+            tipo: 'MEDICO_LAUDISTA',
+            crm: newDocCrm.trim(),
+            uf_crm: newDocUf,
+            rqe: newDocRqe.trim() || undefined,
+            especialidade: newDocEspecialidade,
+            telefone: newDocTelefone.trim() || undefined
+          });
+        }
+      } catch (err) {
+        console.warn('Erro ao conectar com Supabase:', err);
+      }
+    }
 
     const created: UserProfile = {
-      id: `usr-medico-${Date.now()}`,
+      id: createdId,
       name: formattedName,
-      email: newDocEmail.trim().toLowerCase(),
+      email: cleanEmail,
       role: 'MEDICO_LAUDISTA',
       crm: newDocCrm.trim(),
       uf: newDocUf,
@@ -115,9 +168,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       setLocalDoctors(prev => [...prev, created]);
     }
 
+    setIsSubmittingDoctor(false);
     setIsNewDoctorModalOpen(false);
     setNewDocNome('');
     setNewDocEmail('');
+    setNewDocSenha('');
     setNewDocCrm('');
     setNewDocUf('SP');
     setNewDocRqe('');
@@ -575,6 +630,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             <form onSubmit={handleCreateDoctor} className="modal-body-form">
+              {doctorFormError && (
+                <div className="login-error-banner animate-fade-in" style={{ marginBottom: '1rem' }}>
+                  {doctorFormError}
+                </div>
+              )}
+
               <div className="form-group">
                 <label>Nome Completo do Médico(a) *</label>
                 <input
@@ -587,20 +648,34 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 />
               </div>
 
-              <div className="form-group">
-                <label>E-mail Institucional de Acesso *</label>
-                <input
-                  type="email"
-                  required
-                  placeholder="Ex: juliana.mendes@amlaudos.com.br"
-                  value={newDocEmail}
-                  onChange={(e) => setNewDocEmail(e.target.value)}
-                  className="form-control"
-                />
-                <small style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.25rem', display: 'block' }}>
-                  Este e-mail será utilizado pelo médico para fazer login na plataforma.
-                </small>
+              <div className="form-row">
+                <div className="form-group flex-1">
+                  <label>E-mail de Acesso *</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="Ex: juliana.mendes@amlaudos.com.br"
+                    value={newDocEmail}
+                    onChange={(e) => setNewDocEmail(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+                <div className="form-group flex-1">
+                  <label>Senha de Acesso do Médico *</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    placeholder="Mínimo 6 caracteres"
+                    value={newDocSenha}
+                    onChange={(e) => setNewDocSenha(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
               </div>
+              <small style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '-0.35rem', marginBottom: '0.85rem', display: 'block' }}>
+                O médico utilizará este e-mail e senha para fazer login na Central de Laudos.
+              </small>
 
               <div className="form-row">
                 <div className="form-group flex-2">
@@ -682,8 +757,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 >
                   Cancelar
                 </button>
-                <button type="submit" className="btn-primary-action">
-                  Salvar e Habilitar Médico Laudista
+                <button type="submit" disabled={isSubmittingDoctor} className="btn-primary-action">
+                  {isSubmittingDoctor ? 'Cadastrando e Habilitando...' : 'Salvar e Habilitar Médico Laudista'}
                 </button>
               </div>
             </form>
