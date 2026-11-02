@@ -20,22 +20,14 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicValidator }) =
   const { login, isSupabase } = useAuth();
 
   const [activeRoleTab, setActiveRoleTab] = useState<UserRole>('ADMIN');
-  const [email, setEmail] = useState('g2autodev@gmail.com');
+  const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [errorMessage, setErrorMessage] = useState('');
 
-  // Sincronizar o email ao alternar entre as abas
   const handleRoleTabChange = (role: UserRole) => {
     setActiveRoleTab(role);
     setErrorMessage('');
-    if (role === 'MEDICO_LAUDISTA') {
-      setEmail('medico@amlaudos.com.br');
-    } else if (role === 'TECNICO_CLINICA') {
-      setEmail('clinica@saolucas.com.br');
-    } else {
-      setEmail('g2autodev@gmail.com');
-    }
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
@@ -127,9 +119,10 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicValidator }) =
               <input
                 type="email"
                 required
-                placeholder="seu.email@exemplo.com.br"
+                placeholder="Digite seu e-mail de acesso"
                 value={email}
                 onChange={(e) => setEmail(e.target.value)}
+                autoComplete="email"
               />
             </div>
           </div>
