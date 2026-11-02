@@ -10,7 +10,7 @@ import {
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../types';
-import logoImg from '../../assets/logo-amlaudos.png';
+import logoImg from '../../assets/logo-amlaudos.jpg';
 
 interface LoginPageProps {
   onOpenPublicValidator: () => void;
@@ -63,7 +63,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicValidator }) =
           <div className="login-logo-img-wrap">
             <img 
               src={logoImg} 
-              alt="AM Laudos - Saúde ao Seu Alcance" 
+              alt="AM Laudos - Telemedicina e Laudos Médicos Digitais" 
               className="login-brand-logo-img" 
             />
           </div>
