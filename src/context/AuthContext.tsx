@@ -39,28 +39,62 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
     const { data: { subscription } } = client.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
+        const userEmail = session.user.email?.trim().toLowerCase() || '';
+        const isMasterAdmin = userEmail === 'g2autodev@gmail.com' || userEmail.includes('admin');
+
         // Buscar dados do perfil na tabela public.perfis
-        const { data: profile } = await client
+        let { data: profile } = await client
           .from('perfis')
           .select('*, clinicas(nome)')
           .eq('id', session.user.id)
           .single();
 
-        if (profile) {
-          const userProfile: UserProfile = {
-            id: session.user.id,
-            email: session.user.email || '',
-            name: profile.nome_completo || session.user.email || 'Usuário',
-            role: profile.tipo as UserRole,
-            clinicId: profile.clinica_id,
-            clinicName: profile.clinicas?.nome,
-            crm: profile.crm,
-            uf: profile.uf_crm,
-            rqe: profile.rqe,
-            specialty: profile.especialidade
-          };
-          setCurrentUser(userProfile);
+        // Se o perfil ainda não existir na tabela perfis, tenta criar automaticamente
+        if (!profile) {
+          const role: UserRole = isMasterAdmin 
+            ? 'ADMIN' 
+            : (userEmail.includes('medico') || userEmail.includes('cardio') ? 'MEDICO_LAUDISTA' : 'TECNICO_CLINICA');
+          
+          const defaultName = isMasterAdmin 
+            ? 'Administrador Geral' 
+            : userEmail.split('@')[0].toUpperCase();
+
+          try {
+            const { data: newProfile } = await client
+              .from('perfis')
+              .insert({
+                id: session.user.id,
+                nome_completo: defaultName,
+                tipo: role
+              })
+              .select('*, clinicas(nome)')
+              .single();
+
+            if (newProfile) {
+              profile = newProfile;
+            }
+          } catch {
+            // Ignorar erro de RLS e usar fallback em memória
+          }
         }
+
+        const finalRole: UserRole = isMasterAdmin 
+          ? 'ADMIN' 
+          : (profile?.tipo as UserRole || 'TECNICO_CLINICA');
+
+        const userProfile: UserProfile = {
+          id: session.user.id,
+          email: session.user.email || userEmail,
+          name: profile?.nome_completo || (isMasterAdmin ? 'Administrador Geral' : userEmail),
+          role: finalRole,
+          clinicId: profile?.clinica_id,
+          clinicName: profile?.clinicas?.nome,
+          crm: profile?.crm,
+          uf: profile?.uf_crm,
+          rqe: profile?.rqe,
+          specialty: profile?.especialidade
+        };
+        setCurrentUser(userProfile);
       } else if (event === 'SIGNED_OUT') {
         setCurrentUser(null);
       }
@@ -87,27 +121,59 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (data.user) {
-          const { data: profile } = await supabase
+          const isMasterAdmin = cleanEmail === 'g2autodev@gmail.com' || cleanEmail.includes('admin');
+
+          let { data: profile } = await supabase
             .from('perfis')
             .select('*, clinicas(nome)')
             .eq('id', data.user.id)
             .single();
 
-          if (profile) {
-            setCurrentUser({
-              id: data.user.id,
-              email: data.user.email || cleanEmail,
-              name: profile.nome_completo,
-              role: profile.tipo as UserRole,
-              clinicId: profile.clinica_id,
-              clinicName: profile.clinicas?.nome,
-              crm: profile.crm,
-              uf: profile.uf_crm,
-              rqe: profile.rqe,
-              specialty: profile.especialidade
-            });
-            return { success: true };
+          if (!profile) {
+            const role: UserRole = isMasterAdmin 
+              ? 'ADMIN' 
+              : (cleanEmail.includes('medico') || cleanEmail.includes('cardio') ? 'MEDICO_LAUDISTA' : 'TECNICO_CLINICA');
+            
+            const defaultName = isMasterAdmin 
+              ? 'Administrador Geral' 
+              : cleanEmail.split('@')[0].toUpperCase();
+
+            try {
+              const { data: newProfile } = await supabase
+                .from('perfis')
+                .insert({
+                  id: data.user.id,
+                  nome_completo: defaultName,
+                  tipo: role
+                })
+                .select('*, clinicas(nome)')
+                .single();
+
+              if (newProfile) {
+                profile = newProfile;
+              }
+            } catch {
+              // Ignorar erro e usar fallback
+            }
           }
+
+          const finalRole: UserRole = isMasterAdmin 
+            ? 'ADMIN' 
+            : (profile?.tipo as UserRole || 'TECNICO_CLINICA');
+
+          setCurrentUser({
+            id: data.user.id,
+            email: data.user.email || cleanEmail,
+            name: profile?.nome_completo || (isMasterAdmin ? 'Administrador Geral' : cleanEmail),
+            role: finalRole,
+            clinicId: profile?.clinica_id,
+            clinicName: profile?.clinicas?.nome,
+            crm: profile?.crm,
+            uf: profile?.uf_crm,
+            rqe: profile?.rqe,
+            specialty: profile?.especialidade
+          });
+          return { success: true };
         }
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : 'Falha na conexão com Supabase';
@@ -136,7 +202,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // Se informou um email novo qualquer, cria uma conta temporária com base no domínio
     let role: UserRole = 'TECNICO_CLINICA';
     let clinicName = 'Clínica Parceira';
-    if (cleanEmail.includes('admin')) {
+    if (cleanEmail === 'g2autodev@gmail.com' || cleanEmail.includes('admin')) {
       role = 'ADMIN';
     } else if (cleanEmail.includes('medico') || cleanEmail.includes('cardio') || cleanEmail.includes('dr')) {
       role = 'MEDICO_LAUDISTA';

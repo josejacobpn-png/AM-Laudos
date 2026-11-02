@@ -491,3 +491,38 @@ VALUES
         'Bradicardia sinusal. Sugere-se correlacionar com nível de condicionamento físico (atleta) ou uso de cronotrópicos negativos (beta-bloqueadores, bloqueadores de canal de cálcio).'
     )
 ON CONFLICT (nome) DO NOTHING;
+
+-- ------------------------------------------------------------------------------
+-- 12. AUTOMAÇÃO DE CRIAÇÃO DE PERFIL VIA TRIGGER (auth.users -> public.perfis)
+-- ------------------------------------------------------------------------------
+DROP POLICY IF EXISTS "Usuarios podem criar seu proprio perfil" ON public.perfis;
+CREATE POLICY "Usuarios podem criar seu proprio perfil"
+ON public.perfis FOR INSERT TO authenticated
+WITH CHECK (auth.uid() = id);
+
+CREATE OR REPLACE FUNCTION public.handle_new_user()
+RETURNS trigger AS $$
+BEGIN
+  INSERT INTO public.perfis (id, nome_completo, tipo, created_at, updated_at)
+  VALUES (
+    new.id,
+    COALESCE(new.raw_user_meta_data->>'nome_completo', split_part(new.email, '@', 1)),
+    CASE 
+      WHEN new.email = 'g2autodev@gmail.com' OR new.email ILIKE '%admin%' THEN 'ADMIN'::tipo_usuario
+      WHEN new.email ILIKE '%medico%' OR new.email ILIKE '%cardio%' THEN 'MEDICO_LAUDISTA'::tipo_usuario
+      ELSE 'TECNICO_CLINICA'::tipo_usuario
+    END,
+    NOW(),
+    NOW()
+  )
+  ON CONFLICT (id) DO UPDATE SET
+    tipo = EXCLUDED.tipo,
+    updated_at = NOW();
+  RETURN new;
+END;
+$$ LANGUAGE plpgsql SECURITY DEFINER;
+
+DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
+CREATE TRIGGER on_auth_user_created
+  AFTER INSERT ON auth.users
+  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();

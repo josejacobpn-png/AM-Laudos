@@ -32,8 +32,8 @@ export const DEMO_USERS: UserProfile[] = [
   },
   {
     id: 'usr-admin-01',
-    email: 'admin@amlaudos.com.br',
-    name: 'Gestor Clínico & Admin',
+    email: 'g2autodev@gmail.com',
+    name: 'G2 Auto Dev (Administrador Geral)',
     role: 'ADMIN',
     avatarUrl: ''
   }

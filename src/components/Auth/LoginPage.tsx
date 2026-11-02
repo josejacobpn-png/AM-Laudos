@@ -34,7 +34,7 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicValidator }) =
     } else if (role === 'TECNICO_CLINICA') {
       setEmail('clinica@saolucas.com.br');
     } else {
-      setEmail('admin@amlaudos.com.br');
+      setEmail('g2autodev@gmail.com');
     }
   };
 
