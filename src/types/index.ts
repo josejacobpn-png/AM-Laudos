@@ -38,6 +38,7 @@ export interface Clinic {
   city: string;
   state: string;
   phone: string;
+  email?: string;
   logoBadge?: string;
   active?: boolean;
 }

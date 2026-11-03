@@ -310,6 +310,18 @@ DROP POLICY IF EXISTS "Permitir leitura de clinicas ativas para autenticados" ON
 CREATE POLICY "Permitir leitura de clinicas ativas para autenticados"
 ON public.clinicas FOR SELECT TO authenticated USING (ativo = true);
 
+DROP POLICY IF EXISTS "Admins podem gerenciar clinicas" ON public.clinicas;
+CREATE POLICY "Admins podem gerenciar clinicas"
+ON public.clinicas FOR ALL TO authenticated
+USING (
+  (SELECT tipo FROM public.perfis WHERE id = auth.uid()) = 'ADMIN'
+  OR (SELECT email FROM auth.users WHERE id = auth.uid()) = 'g2autodev@gmail.com'
+)
+WITH CHECK (
+  (SELECT tipo FROM public.perfis WHERE id = auth.uid()) = 'ADMIN'
+  OR (SELECT email FROM auth.users WHERE id = auth.uid()) = 'g2autodev@gmail.com'
+);
+
 DROP POLICY IF EXISTS "Permitir leitura de mascaras de laudos" ON public.mascaras_laudos;
 CREATE POLICY "Permitir leitura de mascaras de laudos"
 ON public.mascaras_laudos FOR SELECT TO authenticated USING (true);

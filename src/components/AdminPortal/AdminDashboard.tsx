@@ -15,6 +15,36 @@ import { DEMO_USERS } from '../../data/mockUsers';
 import { formatDateTimeBR } from '../../utils/cryptoSim';
 import { supabase, isSupabaseConfigured } from '../../services/supabase';
 
+export const BRAZILIAN_UFS = [
+  { sigla: 'AC', nome: 'Acre (AC)' },
+  { sigla: 'AL', nome: 'Alagoas (AL)' },
+  { sigla: 'AP', nome: 'Amapá (AP)' },
+  { sigla: 'AM', nome: 'Amazonas (AM)' },
+  { sigla: 'BA', nome: 'Bahia (BA)' },
+  { sigla: 'CE', nome: 'Ceará (CE)' },
+  { sigla: 'DF', nome: 'Distrito Federal (DF)' },
+  { sigla: 'ES', nome: 'Espírito Santo (ES)' },
+  { sigla: 'GO', nome: 'Goiás (GO)' },
+  { sigla: 'MA', nome: 'Maranhão (MA)' },
+  { sigla: 'MT', nome: 'Mato Grosso (MT)' },
+  { sigla: 'MS', nome: 'Mato Grosso do Sul (MS)' },
+  { sigla: 'MG', nome: 'Minas Gerais (MG)' },
+  { sigla: 'PA', nome: 'Pará (PA)' },
+  { sigla: 'PB', nome: 'Paraíba (PB)' },
+  { sigla: 'PR', nome: 'Paraná (PR)' },
+  { sigla: 'PE', nome: 'Pernambuco (PE)' },
+  { sigla: 'PI', nome: 'Piauí (PI)' },
+  { sigla: 'RJ', nome: 'Rio de Janeiro (RJ)' },
+  { sigla: 'RN', nome: 'Rio Grande do Norte (RN)' },
+  { sigla: 'RS', nome: 'Rio Grande do Sul (RS)' },
+  { sigla: 'RO', nome: 'Rondônia (RO)' },
+  { sigla: 'RR', nome: 'Roraima (RR)' },
+  { sigla: 'SC', nome: 'Santa Catarina (SC)' },
+  { sigla: 'SP', nome: 'São Paulo (SP)' },
+  { sigla: 'SE', nome: 'Sergipe (SE)' },
+  { sigla: 'TO', nome: 'Tocantins (TO)' }
+];
+
 interface AdminDashboardProps {
   clinics: Clinic[];
   exams: Exam[];
@@ -42,6 +72,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newCidade, setNewCidade] = useState('');
   const [newEstado, setNewEstado] = useState('SP');
   const [newTelefone, setNewTelefone] = useState('');
+  const [newEmail, setNewEmail] = useState('');
+  const [newSenha, setNewSenha] = useState('');
+  const [isSubmittingClinic, setIsSubmittingClinic] = useState(false);
+  const [clinicFormError, setClinicFormError] = useState('');
 
   // Médicos cadastrados
   const [localDoctors, setLocalDoctors] = useState<UserProfile[]>(() => {
@@ -69,26 +103,96 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const totalExams = exams.length;
   const criticalExams = exams.filter(e => e.priority === 'EMERGENCIA' && e.status === 'PENDENTE').length;
 
-  const handleCreateClinic = (e: React.FormEvent) => {
+  const handleCreateClinic = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newNome || !newCnes) return;
+    if (!newNome || !newCnes || !newEmail) return;
+
+    if (!newSenha || newSenha.length < 6) {
+      setClinicFormError('A senha de acesso da clínica deve ter no mínimo 6 caracteres.');
+      return;
+    }
+
+    setClinicFormError('');
+    setIsSubmittingClinic(true);
+
+    const cleanEmail = newEmail.trim().toLowerCase();
+    const cleanNome = newNome.trim();
+    let clinicId = `cli-${Date.now()}`;
+
+    // Sincronizar criação no Supabase
+    if (isSupabaseConfigured && supabase) {
+      try {
+        // 1. Inserir na tabela public.clinicas
+        const { data: clinicData, error: clinicErr } = await supabase
+          .from('clinicas')
+          .insert({
+            nome: cleanNome,
+            cnes: newCnes.trim(),
+            cidade: newCidade.trim() || 'São Paulo',
+            estado: newEstado || 'SP',
+            telefone: newTelefone.trim() || '(11) 3000-0000',
+            email: cleanEmail,
+            ativo: true
+          })
+          .select('id')
+          .single();
+
+        if (clinicData) {
+          clinicId = clinicData.id;
+        } else if (clinicErr) {
+          console.warn('Aviso ao inserir clínica no Supabase:', clinicErr.message);
+        }
+
+        // 2. Criar usuário no Supabase Auth para a clínica
+        const { data: authData, error: authErr } = await supabase.auth.signUp({
+          email: cleanEmail,
+          password: newSenha,
+          options: {
+            data: {
+              nome_completo: cleanNome,
+              tipo: 'TECNICO_CLINICA',
+              clinica_id: clinicId
+            }
+          }
+        });
+
+        if (authErr) {
+          console.warn('Aviso Supabase Auth ao registrar clínica:', authErr.message);
+        } else if (authData.user) {
+          await supabase.from('perfis').upsert({
+            id: authData.user.id,
+            nome_completo: cleanNome,
+            tipo: 'TECNICO_CLINICA',
+            clinica_id: clinicId,
+            telefone: newTelefone.trim() || undefined
+          });
+        }
+      } catch (err) {
+        console.warn('Erro ao conectar clínica com Supabase:', err);
+      }
+    }
 
     const created: Clinic = {
-      id: `cli-${Date.now()}`,
-      name: newNome,
-      cnes: newCnes,
-      city: newCidade || 'São Paulo',
+      id: clinicId,
+      name: cleanNome,
+      cnes: newCnes.trim(),
+      city: newCidade.trim() || 'São Paulo',
       state: newEstado || 'SP',
-      phone: newTelefone || '(11) 3000-0000',
+      phone: newTelefone.trim() || '(11) 3000-0000',
+      email: cleanEmail,
       active: true
     };
 
     onAddClinic(created);
+    setIsSubmittingClinic(false);
     setIsNewClinicModalOpen(false);
     setNewNome('');
     setNewCnes('');
     setNewCidade('');
+    setNewEstado('SP');
     setNewTelefone('');
+    setNewEmail('');
+    setNewSenha('');
   };
 
   const handleCreateDoctor = async (e: React.FormEvent) => {
@@ -304,6 +408,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <th>Nome da Clínica / Posto</th>
                   <th>CNES</th>
                   <th>Cidade / UF</th>
+                  <th>E-mail de Acesso</th>
                   <th>Telefone</th>
                   <th>Exames Emitidos</th>
                   <th>Status</th>
@@ -323,6 +428,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <code>{c.cnes}</code>
                         </td>
                         <td>{c.city} / {c.state}</td>
+                        <td>{c.email ? <code>{c.email}</code> : <span className="text-muted">—</span>}</td>
                         <td>{c.phone}</td>
                         <td>
                           <span className="exam-count-badge">{count} exames</span>
@@ -530,6 +636,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             </div>
 
             <form onSubmit={handleCreateClinic} className="modal-body-form">
+              {clinicFormError && (
+                <div className="login-error-banner animate-fade-in" style={{ marginBottom: '1rem' }}>
+                  {clinicFormError}
+                </div>
+              )}
+
               <div className="form-group">
                 <label>Razão Social / Nome Fantasia *</label>
                 <input
@@ -541,6 +653,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   className="form-control"
                 />
               </div>
+
+              <div className="form-row">
+                <div className="form-group flex-1">
+                  <label>E-mail de Acesso da Clínica *</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="contato@clinicadiagnosticos.com.br"
+                    value={newEmail}
+                    onChange={(e) => setNewEmail(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+                <div className="form-group flex-1">
+                  <label>Senha de Acesso da Clínica *</label>
+                  <input
+                    type="password"
+                    required
+                    minLength={6}
+                    placeholder="Mínimo 6 caracteres"
+                    value={newSenha}
+                    onChange={(e) => setNewSenha(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+              </div>
+              <small style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '-0.35rem', marginBottom: '0.85rem', display: 'block' }}>
+                A clínica utilizará este e-mail e senha para acessar o portal e enviar exames para laudo.
+              </small>
 
               <div className="form-row">
                 <div className="form-group flex-1">
@@ -584,13 +725,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     onChange={(e) => setNewEstado(e.target.value)}
                     className="form-control"
                   >
-                    <option value="SP">SP</option>
-                    <option value="RJ">RJ</option>
-                    <option value="MG">MG</option>
-                    <option value="PR">PR</option>
-                    <option value="RS">RS</option>
-                    <option value="BA">BA</option>
-                    <option value="DF">DF</option>
+                    {BRAZILIAN_UFS.map(uf => (
+                      <option key={uf.sigla} value={uf.sigla}>{uf.nome}</option>
+                    ))}
                   </select>
                 </div>
               </div>
@@ -603,8 +740,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 >
                   Cancelar
                 </button>
-                <button type="submit" className="btn-primary-action">
-                  Salvar e Credenciar Unidade
+                <button type="submit" disabled={isSubmittingClinic} className="btn-primary-action">
+                  {isSubmittingClinic ? 'Credenciando Unidade...' : 'Salvar e Credenciar Unidade'}
                 </button>
               </div>
             </form>
@@ -691,17 +828,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     onChange={(e) => setNewDocUf(e.target.value)}
                     className="form-control"
                   >
-                    <option value="SP">SP</option>
-                    <option value="RJ">RJ</option>
-                    <option value="MG">MG</option>
-                    <option value="RS">RS</option>
-                    <option value="PR">PR</option>
-                    <option value="BA">BA</option>
-                    <option value="SC">SC</option>
-                    <option value="GO">GO</option>
-                    <option value="DF">DF</option>
-                    <option value="PE">PE</option>
-                    <option value="CE">CE</option>
+                    {BRAZILIAN_UFS.map(uf => (
+                      <option key={uf.sigla} value={uf.sigla}>{uf.nome}</option>
+                    ))}
                   </select>
                 </div>
               </div>
