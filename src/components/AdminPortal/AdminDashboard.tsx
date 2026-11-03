@@ -58,7 +58,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newDocSenha, setNewDocSenha] = useState('');
   const [newDocCrm, setNewDocCrm] = useState('');
   const [newDocUf, setNewDocUf] = useState('SP');
-  const [newDocRqe, setNewDocRqe] = useState('');
   const [newDocEspecialidade, setNewDocEspecialidade] = useState('Cardiologia Clínica e Eletrofisiologia');
   const [newDocTelefone, setNewDocTelefone] = useState('');
   const [isSubmittingDoctor, setIsSubmittingDoctor] = useState(false);
@@ -124,7 +123,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               tipo: 'MEDICO_LAUDISTA',
               crm: newDocCrm.trim(),
               uf_crm: newDocUf,
-              rqe: newDocRqe.trim() || undefined,
               especialidade: newDocEspecialidade
             }
           }
@@ -140,7 +138,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             tipo: 'MEDICO_LAUDISTA',
             crm: newDocCrm.trim(),
             uf_crm: newDocUf,
-            rqe: newDocRqe.trim() || undefined,
             especialidade: newDocEspecialidade,
             telefone: newDocTelefone.trim() || undefined
           });
@@ -157,7 +154,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       role: 'MEDICO_LAUDISTA',
       crm: newDocCrm.trim(),
       uf: newDocUf,
-      rqe: newDocRqe.trim() || undefined,
       specialty: newDocEspecialidade,
       phone: newDocTelefone.trim() || undefined
     };
@@ -175,7 +171,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setNewDocSenha('');
     setNewDocCrm('');
     setNewDocUf('SP');
-    setNewDocRqe('');
     setNewDocEspecialidade('Cardiologia Clínica e Eletrofisiologia');
     setNewDocTelefone('');
   };
@@ -378,7 +373,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <th>Nome do Médico / Especialista</th>
                   <th>E-mail de Acesso</th>
                   <th>CRM / UF</th>
-                  <th>RQE Especialidade</th>
+                  <th>Especialidade</th>
                   <th>Telefone / Contato</th>
                   <th>Status no CFM</th>
                 </tr>
@@ -400,7 +395,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       <td>
                         <code>CRM {d.crm}-{d.uf}</code>
                       </td>
-                      <td>{d.rqe ? `${d.rqe} (${d.specialty || 'Cardiologia'})` : (d.specialty || 'Cardiologia')}</td>
+                      <td>{d.specialty || 'Cardiologia'}</td>
                       <td>{d.phone || '—'}</td>
                       <td>
                         <span className="badge-status-ready">
@@ -711,27 +706,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
 
-              <div className="form-row">
-                <div className="form-group flex-1">
-                  <label>RQE (Registro Qualificação Especialista)</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: 31045"
-                    value={newDocRqe}
-                    onChange={(e) => setNewDocRqe(e.target.value)}
-                    className="form-control"
-                  />
-                </div>
-                <div className="form-group flex-1">
-                  <label>Telefone / WhatsApp Profissional</label>
-                  <input
-                    type="text"
-                    placeholder="Ex: (11) 98765-4321"
-                    value={newDocTelefone}
-                    onChange={(e) => setNewDocTelefone(e.target.value)}
-                    className="form-control"
-                  />
-                </div>
+              <div className="form-group">
+                <label>Telefone / WhatsApp Profissional</label>
+                <input
+                  type="text"
+                  placeholder="Ex: (11) 98765-4321"
+                  value={newDocTelefone}
+                  onChange={(e) => setNewDocTelefone(e.target.value)}
+                  className="form-control"
+                />
               </div>
 
               <div className="form-group">
