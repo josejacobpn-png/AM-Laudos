@@ -120,9 +120,19 @@ function MainAppContent() {
     setClinics(prev => [...prev, newClinic]);
   };
 
+  // Handler de atualização de clínica existente pelo Admin
+  const handleUpdateClinic = (updatedClinic: Clinic) => {
+    setClinics(prev => prev.map(c => c.id === updatedClinic.id ? updatedClinic : c));
+  };
+
   // Handler de cadastro de novo médico laudista pelo Admin
   const handleAddDoctor = (newDoctor: UserProfile) => {
     setDoctors(prev => [...prev, newDoctor]);
+  };
+
+  // Handler de atualização de médico existente pelo Admin
+  const handleUpdateDoctor = (updatedDoctor: UserProfile) => {
+    setDoctors(prev => prev.map(d => d.id === updatedDoctor.id ? updatedDoctor : d));
   };
 
   // Abrir editor para laudar
@@ -209,7 +219,9 @@ function MainAppContent() {
                 exams={exams}
                 doctors={doctors}
                 onAddClinic={handleAddClinic}
+                onUpdateClinic={handleUpdateClinic}
                 onAddDoctor={handleAddDoctor}
+                onUpdateDoctor={handleUpdateDoctor}
                 onViewReport={handleViewReport}
               />
             )}

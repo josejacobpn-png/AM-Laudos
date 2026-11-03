@@ -2341,6 +2341,28 @@
 .btn-action.download:hover { background-color: var(--primary-hover); }
 .btn-action.share:hover { background-color: #dcfce7; color: #15803d; }
 
+.btn-table-edit {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-sm);
+  background-color: #f1f5f9;
+  color: var(--text-main);
+  border: 1px solid #e2e8f0;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-table-edit:hover {
+  background-color: #e0f2fe;
+  color: var(--primary);
+  border-color: #bae6fd;
+}
+
 .waiting-tag {
   font-size: 0.72rem;
   color: var(--text-muted);

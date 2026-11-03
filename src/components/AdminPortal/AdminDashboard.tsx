@@ -8,7 +8,8 @@ import {
   CheckCircle, 
   FileText, 
   AlertTriangle,
-  Layers
+  Layers,
+  Pencil
 } from 'lucide-react';
 import type { Clinic, Exam, UserProfile } from '../../types';
 import { DEMO_USERS } from '../../data/mockUsers';
@@ -50,7 +51,9 @@ interface AdminDashboardProps {
   exams: Exam[];
   doctors?: UserProfile[];
   onAddClinic: (newClinic: Clinic) => void;
+  onUpdateClinic?: (updatedClinic: Clinic) => void;
   onAddDoctor?: (newDoctor: UserProfile) => void;
+  onUpdateDoctor?: (updatedDoctor: UserProfile) => void;
   onViewReport: (exam: Exam) => void;
 }
 
@@ -59,7 +62,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   exams,
   doctors,
   onAddClinic,
+  onUpdateClinic,
   onAddDoctor,
+  onUpdateDoctor,
   onViewReport
 }) => {
   const [activeTab, setActiveTab] = useState<'clinicas' | 'medicos' | 'auditoria' | 'exames_geral'>('clinicas');
@@ -76,6 +81,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newSenha, setNewSenha] = useState('');
   const [isSubmittingClinic, setIsSubmittingClinic] = useState(false);
   const [clinicFormError, setClinicFormError] = useState('');
+
+  // Form states para editar clínica existente
+  const [isEditClinicModalOpen, setIsEditClinicModalOpen] = useState(false);
+  const [editingClinic, setEditingClinic] = useState<Clinic | null>(null);
+  const [editClinicNome, setEditClinicNome] = useState('');
+  const [editClinicCnes, setEditClinicCnes] = useState('');
+  const [editClinicCidade, setEditClinicCidade] = useState('');
+  const [editClinicEstado, setEditClinicEstado] = useState('SP');
+  const [editClinicTelefone, setEditClinicTelefone] = useState('');
+  const [editClinicEmail, setEditClinicEmail] = useState('');
+  const [editClinicAtivo, setEditClinicAtivo] = useState(true);
+  const [isSubmittingEditClinic, setIsSubmittingEditClinic] = useState(false);
+  const [editClinicError, setEditClinicError] = useState('');
 
   // Médicos cadastrados
   const [localDoctors, setLocalDoctors] = useState<UserProfile[]>(() => {
@@ -96,6 +114,18 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [newDocTelefone, setNewDocTelefone] = useState('');
   const [isSubmittingDoctor, setIsSubmittingDoctor] = useState(false);
   const [doctorFormError, setDoctorFormError] = useState('');
+
+  // Form states para editar médico existente
+  const [isEditDoctorModalOpen, setIsEditDoctorModalOpen] = useState(false);
+  const [editingDoctor, setEditingDoctor] = useState<UserProfile | null>(null);
+  const [editDocNome, setEditDocNome] = useState('');
+  const [editDocEmail, setEditDocEmail] = useState('');
+  const [editDocCrm, setEditDocCrm] = useState('');
+  const [editDocUf, setEditDocUf] = useState('SP');
+  const [editDocEspecialidade, setEditDocEspecialidade] = useState('Cardiologia Clínica e Eletrofisiologia');
+  const [editDocTelefone, setEditDocTelefone] = useState('');
+  const [isSubmittingEditDoctor, setIsSubmittingEditDoctor] = useState(false);
+  const [editDoctorError, setEditDoctorError] = useState('');
 
   // Métricas
   const totalClinics = clinics.length;
@@ -279,6 +309,123 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setNewDocTelefone('');
   };
 
+  // Handlers para Edição de Clínica
+  const handleOpenEditClinic = (clinic: Clinic) => {
+    setEditingClinic(clinic);
+    setEditClinicNome(clinic.name);
+    setEditClinicCnes(clinic.cnes);
+    setEditClinicCidade(clinic.city);
+    setEditClinicEstado(clinic.state);
+    setEditClinicTelefone(clinic.phone);
+    setEditClinicEmail(clinic.email || '');
+    setEditClinicAtivo(clinic.active !== false);
+    setEditClinicError('');
+    setIsEditClinicModalOpen(true);
+  };
+
+  const handleSaveEditClinic = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingClinic || !editClinicNome || !editClinicCnes) return;
+
+    setIsSubmittingEditClinic(true);
+    setEditClinicError('');
+
+    const updated: Clinic = {
+      ...editingClinic,
+      name: editClinicNome.trim(),
+      cnes: editClinicCnes.trim(),
+      city: editClinicCidade.trim() || 'São Paulo',
+      state: editClinicEstado || 'SP',
+      phone: editClinicTelefone.trim() || '(11) 3000-0000',
+      email: editClinicEmail.trim().toLowerCase(),
+      active: editClinicAtivo
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('clinicas').update({
+          nome: updated.name,
+          cnes: updated.cnes,
+          cidade: updated.city,
+          estado: updated.state,
+          telefone: updated.phone,
+          email: updated.email,
+          ativo: updated.active
+        }).eq('id', updated.id);
+      } catch (err) {
+        console.warn('Erro ao atualizar clínica no Supabase:', err);
+      }
+    }
+
+    if (onUpdateClinic) {
+      onUpdateClinic(updated);
+    }
+
+    setIsSubmittingEditClinic(false);
+    setIsEditClinicModalOpen(false);
+    setEditingClinic(null);
+  };
+
+  // Handlers para Edição de Médico Laudista
+  const handleOpenEditDoctor = (doctor: UserProfile) => {
+    setEditingDoctor(doctor);
+    setEditDocNome(doctor.name);
+    setEditDocEmail(doctor.email || '');
+    setEditDocCrm(doctor.crm || '');
+    setEditDocUf(doctor.uf || 'SP');
+    setEditDocEspecialidade(doctor.specialty || 'Cardiologia Clínica e Eletrofisiologia');
+    setEditDocTelefone(doctor.phone || '');
+    setEditDoctorError('');
+    setIsEditDoctorModalOpen(true);
+  };
+
+  const handleSaveEditDoctor = async (e: React.FormEvent) => {
+    e.preventDefault();
+    if (!editingDoctor || !editDocNome || !editDocCrm || !editDocEmail) return;
+
+    setIsSubmittingEditDoctor(true);
+    setEditDoctorError('');
+
+    const trimmedName = editDocNome.trim();
+    const formattedName = trimmedName.startsWith('Dr.') || trimmedName.startsWith('Dra.')
+      ? trimmedName
+      : `Dr(a). ${trimmedName}`;
+
+    const updated: UserProfile = {
+      ...editingDoctor,
+      name: formattedName,
+      email: editDocEmail.trim().toLowerCase(),
+      crm: editDocCrm.trim(),
+      uf: editDocUf,
+      specialty: editDocEspecialidade,
+      phone: editDocTelefone.trim() || undefined
+    };
+
+    if (isSupabaseConfigured && supabase) {
+      try {
+        await supabase.from('perfis').update({
+          nome_completo: updated.name,
+          crm: updated.crm,
+          uf_crm: updated.uf,
+          especialidade: updated.specialty,
+          telefone: updated.phone
+        }).eq('id', updated.id);
+      } catch (err) {
+        console.warn('Erro ao atualizar perfil do médico no Supabase:', err);
+      }
+    }
+
+    if (onUpdateDoctor) {
+      onUpdateDoctor(updated);
+    } else {
+      setLocalDoctors(prev => prev.map(d => d.id === updated.id ? updated : d));
+    }
+
+    setIsSubmittingEditDoctor(false);
+    setIsEditDoctorModalOpen(false);
+    setEditingDoctor(null);
+  };
+
   return (
     <div className="admin-portal-wrap animate-fade-in">
       {/* Banner de Gestão e Governança */}
@@ -412,6 +559,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <th>Telefone</th>
                   <th>Exames Emitidos</th>
                   <th>Status</th>
+                  <th style={{ textAlign: 'center' }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -434,9 +582,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           <span className="exam-count-badge">{count} exames</span>
                         </td>
                         <td>
-                          <span className="badge-status-ready">
-                            <CheckCircle size={13} /> Ativa
-                          </span>
+                          {c.active !== false ? (
+                            <span className="badge-status-ready">
+                              <CheckCircle size={13} /> Ativa
+                            </span>
+                          ) : (
+                            <span className="badge-status-waiting">Inativa</span>
+                          )}
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <button
+                            type="button"
+                            className="btn-table-edit"
+                            onClick={() => handleOpenEditClinic(c)}
+                            title="Editar cadastro da clínica"
+                          >
+                            <Pencil size={13} />
+                            <span>Editar</span>
+                          </button>
                         </td>
                       </tr>
                     );
@@ -482,6 +645,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <th>Especialidade</th>
                   <th>Telefone / Contato</th>
                   <th>Status no CFM</th>
+                  <th style={{ textAlign: 'center' }}>Ações</th>
                 </tr>
               </thead>
               <tbody>
@@ -507,6 +671,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                         <span className="badge-status-ready">
                           <CheckCircle size={13} /> Regular
                         </span>
+                      </td>
+                      <td style={{ textAlign: 'center' }}>
+                        <button
+                          type="button"
+                          className="btn-table-edit"
+                          onClick={() => handleOpenEditDoctor(d)}
+                          title="Editar cadastro do médico"
+                        >
+                          <Pencil size={13} />
+                          <span>Editar</span>
+                        </button>
                       </td>
                     </tr>
                   ))}
@@ -873,6 +1048,241 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </button>
                 <button type="submit" disabled={isSubmittingDoctor} className="btn-primary-action">
                   {isSubmittingDoctor ? 'Cadastrando e Habilitando...' : 'Salvar e Habilitar Médico Laudista'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edição de Clínica */}
+      {isEditClinicModalOpen && (
+        <div className="modal-backdrop animate-fade-in">
+          <div className="modal-dialog" style={{ maxWidth: 540 }}>
+            <div className="modal-header">
+              <div className="modal-title-wrap">
+                <Building2 size={22} className="text-primary" />
+                <h3>Editar Dados da Unidade / Clínica</h3>
+              </div>
+              <button className="btn-close" onClick={() => setIsEditClinicModalOpen(false)}>×</button>
+            </div>
+
+            <form onSubmit={handleSaveEditClinic} className="modal-body-form">
+              {editClinicError && (
+                <div className="login-error-banner animate-fade-in" style={{ marginBottom: '1rem' }}>
+                  {editClinicError}
+                </div>
+              )}
+
+              <div className="form-group">
+                <label>Razão Social / Nome Fantasia *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Clínica CardioVida Diagnósticos"
+                  value={editClinicNome}
+                  onChange={(e) => setEditClinicNome(e.target.value)}
+                  className="form-control"
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group flex-1">
+                  <label>E-mail de Acesso da Clínica *</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="contato@clinicadiagnosticos.com.br"
+                    value={editClinicEmail}
+                    onChange={(e) => setEditClinicEmail(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+                <div className="form-group flex-1">
+                  <label>CNES (Cadastro Nacional) *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="7 dígitos (ex: 8492019)"
+                    value={editClinicCnes}
+                    onChange={(e) => setEditClinicCnes(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group flex-2">
+                  <label>Cidade</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: São Paulo"
+                    value={editClinicCidade}
+                    onChange={(e) => setEditClinicCidade(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+                <div className="form-group flex-1">
+                  <label>Estado (UF)</label>
+                  <select
+                    value={editClinicEstado}
+                    onChange={(e) => setEditClinicEstado(e.target.value)}
+                    className="form-control"
+                  >
+                    {BRAZILIAN_UFS.map(uf => (
+                      <option key={uf.sigla} value={uf.sigla}>{uf.nome}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group flex-1">
+                  <label>Telefone de Contato</label>
+                  <input
+                    type="text"
+                    placeholder="(11) 3456-7890"
+                    value={editClinicTelefone}
+                    onChange={(e) => setEditClinicTelefone(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+                <div className="form-group flex-1">
+                  <label>Status do Credenciamento</label>
+                  <select
+                    value={editClinicAtivo ? 'true' : 'false'}
+                    onChange={(e) => setEditClinicAtivo(e.target.value === 'true')}
+                    className="form-control"
+                  >
+                    <option value="true">Ativa no Sistema</option>
+                    <option value="false">Inativa / Suspensa</option>
+                  </select>
+                </div>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setIsEditClinicModalOpen(false)}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" disabled={isSubmittingEditClinic} className="btn-primary-action">
+                  {isSubmittingEditClinic ? 'Salvando Alterações...' : 'Salvar Alterações'}
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Edição de Médico Laudista */}
+      {isEditDoctorModalOpen && (
+        <div className="modal-backdrop animate-fade-in">
+          <div className="modal-dialog" style={{ maxWidth: 580 }}>
+            <div className="modal-header">
+              <div className="modal-title-wrap">
+                <Stethoscope size={22} className="text-primary" />
+                <h3>Editar Cadastro do Médico Laudista</h3>
+              </div>
+              <button className="btn-close" onClick={() => setIsEditDoctorModalOpen(false)}>×</button>
+            </div>
+
+            <form onSubmit={handleSaveEditDoctor} className="modal-body-form">
+              {editDoctorError && (
+                <div className="login-error-banner animate-fade-in" style={{ marginBottom: '1rem' }}>
+                  {editDoctorError}
+                </div>
+              )}
+
+              <div className="form-group">
+                <label>Nome Completo do Médico(a) *</label>
+                <input
+                  type="text"
+                  required
+                  placeholder="Ex: Dra. Juliana Silveira Mendes"
+                  value={editDocNome}
+                  onChange={(e) => setEditDocNome(e.target.value)}
+                  className="form-control"
+                />
+              </div>
+
+              <div className="form-row">
+                <div className="form-group flex-1">
+                  <label>E-mail de Acesso *</label>
+                  <input
+                    type="email"
+                    required
+                    placeholder="Ex: juliana.mendes@amlaudos.com.br"
+                    value={editDocEmail}
+                    onChange={(e) => setEditDocEmail(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+                <div className="form-group flex-1">
+                  <label>Telefone / WhatsApp Profissional</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: (11) 98765-4321"
+                    value={editDocTelefone}
+                    onChange={(e) => setEditDocTelefone(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+              </div>
+
+              <div className="form-row">
+                <div className="form-group flex-2">
+                  <label>Número do CRM *</label>
+                  <input
+                    type="text"
+                    required
+                    placeholder="Ex: 148.920"
+                    value={editDocCrm}
+                    onChange={(e) => setEditDocCrm(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
+                <div className="form-group flex-1">
+                  <label>UF do CRM *</label>
+                  <select
+                    value={editDocUf}
+                    onChange={(e) => setEditDocUf(e.target.value)}
+                    className="form-control"
+                  >
+                    {BRAZILIAN_UFS.map(uf => (
+                      <option key={uf.sigla} value={uf.sigla}>{uf.nome}</option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
+              <div className="form-group">
+                <label>Especialidade Médica Principal</label>
+                <select
+                  value={editDocEspecialidade}
+                  onChange={(e) => setEditDocEspecialidade(e.target.value)}
+                  className="form-control"
+                >
+                  <option value="Cardiologia Clínica e Eletrofisiologia">Cardiologia Clínica e Eletrofisiologia</option>
+                  <option value="Cardiologia Clínica">Cardiologia Clínica</option>
+                  <option value="Eletrocardiografia de Alta Resolução">Eletrocardiografia de Alta Resolução</option>
+                  <option value="Ergometria e Métodos Gráficos">Ergometria e Métodos Gráficos</option>
+                  <option value="Ecocardiografia e Imagem Cardiovascular">Ecocardiografia e Imagem Cardiovascular</option>
+                </select>
+              </div>
+
+              <div className="modal-footer">
+                <button
+                  type="button"
+                  className="btn-secondary"
+                  onClick={() => setIsEditDoctorModalOpen(false)}
+                >
+                  Cancelar
+                </button>
+                <button type="submit" disabled={isSubmittingEditDoctor} className="btn-primary-action">
+                  {isSubmittingEditDoctor ? 'Salvando Alterações...' : 'Salvar Alterações'}
                 </button>
               </div>
             </form>
