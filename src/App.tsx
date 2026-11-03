@@ -12,6 +12,7 @@ import { ReportEditor } from './components/Editor/ReportEditor';
 import { ExamUploadModal } from './components/ClinicPortal/ExamUploadModal';
 import { ReportViewModal } from './components/ReportViewModal';
 import { generateLaudoPdf } from './utils/pdfGenerator';
+import { supabase, isSupabaseConfigured } from './services/supabase';
 import './App.css';
 
 function MainAppContent() {
@@ -81,6 +82,52 @@ function MainAppContent() {
   useEffect(() => {
     localStorage.setItem('am_laudos_doctors_v2', JSON.stringify(doctors));
   }, [doctors]);
+
+  // Carregar dados reais do Supabase ao iniciar
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+
+    // Carregar clínicas do banco
+    supabase
+      .from('clinicas')
+      .select('*')
+      .then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          const remoteClinics: Clinic[] = data.map((c: any) => ({
+            id: c.id,
+            name: c.nome,
+            cnes: c.cnes,
+            city: c.cidade,
+            state: c.estado,
+            phone: c.telefone || '(11) 3000-0000',
+            email: c.email,
+            active: c.ativo !== false
+          }));
+          setClinics(remoteClinics);
+        }
+      });
+
+    // Carregar médicos cadastrados do banco
+    supabase
+      .from('perfis')
+      .select('*')
+      .eq('tipo', 'MEDICO_LAUDISTA')
+      .then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          const remoteDocs: UserProfile[] = data.map((p: any) => ({
+            id: p.id,
+            name: p.nome_completo,
+            email: p.email || 'medico@amlaudos.com.br',
+            role: 'MEDICO_LAUDISTA',
+            crm: p.crm || '',
+            uf: p.uf_crm || 'SP',
+            specialty: p.especialidade || 'Cardiologia Clínica',
+            phone: p.telefone
+          }));
+          setDoctors(remoteDocs);
+        }
+      });
+  }, []);
 
   // Ajustar visão inicial ao logar ou mudar de perfil
   useEffect(() => {

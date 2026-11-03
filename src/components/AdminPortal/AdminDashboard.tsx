@@ -193,10 +193,15 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           .select('id')
           .single();
 
+        if (clinicErr) {
+          console.warn('Erro ao inserir clínica no Supabase:', clinicErr.message);
+          setIsSubmittingClinic(false);
+          setClinicFormError(`Erro ao salvar no banco Supabase: ${clinicErr.message}`);
+          return;
+        }
+
         if (clinicData) {
           clinicId = clinicData.id;
-        } else if (clinicErr) {
-          console.warn('Aviso ao inserir clínica no Supabase:', clinicErr.message);
         }
 
         // 2. Criar usuário no Supabase Auth para a clínica
@@ -223,8 +228,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             telefone: newTelefone.trim() || undefined
           });
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn('Erro ao conectar clínica com Supabase:', err);
+        setIsSubmittingClinic(false);
+        setClinicFormError(`Falha na conexão com o banco de dados: ${err.message || err}`);
+        return;
       }
     }
 
@@ -290,9 +298,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         if (authErr) {
           console.warn('Aviso Supabase Auth ao registrar médico:', authErr.message);
+          setIsSubmittingDoctor(false);
+          setDoctorFormError(`Falha ao registrar médico no Supabase: ${authErr.message}`);
+          return;
         } else if (authData.user) {
           createdId = authData.user.id;
-          await supabase.from('perfis').upsert({
+          const { error: perfilErr } = await supabase.from('perfis').upsert({
             id: authData.user.id,
             nome_completo: formattedName,
             tipo: 'MEDICO_LAUDISTA',
@@ -301,9 +312,19 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             especialidade: newDocEspecialidade,
             telefone: newDocTelefone.trim() || undefined
           });
+
+          if (perfilErr) {
+            console.warn('Erro ao criar perfil de médico no Supabase:', perfilErr.message);
+            setIsSubmittingDoctor(false);
+            setDoctorFormError(`Erro ao salvar perfil do médico: ${perfilErr.message}`);
+            return;
+          }
         }
-      } catch (err) {
+      } catch (err: any) {
         console.warn('Erro ao conectar com Supabase:', err);
+        setIsSubmittingDoctor(false);
+        setDoctorFormError(`Falha de conexão com o banco de dados: ${err.message || err}`);
+        return;
       }
     }
 
