@@ -561,7 +561,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         </div>
 
         <div className="admin-sla-badge">
-          <span className="sla-rate">99.2%</span>
+          <span className="sla-rate">0%</span>
           <span className="sla-label">Conformidade SLA 2026</span>
         </div>
       </div>
