@@ -149,7 +149,7 @@ export const LoginPage: React.FC<LoginPageProps> = () => {
               <span>Autenticando sessão...</span>
             ) : (
               <>
-                <span>Acessar Plataforma AM Laudos</span>
+                <span>Acessar Plataforma</span>
                 <ArrowRight size={18} />
               </>
             )}
