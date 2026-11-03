@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
   Building2, 
-  ShieldCheck, 
   Stethoscope, 
   AlertTriangle, 
   UploadCloud, 
@@ -15,8 +14,8 @@ import { useAuth } from '../context/AuthContext';
 import logoImg from '../assets/logo-amlaudos.jpg';
 
 interface HeaderProps {
-  currentView: 'laudista' | 'clinica' | 'admin' | 'validador';
-  onViewChange: (view: 'laudista' | 'clinica' | 'admin' | 'validador') => void;
+  currentView: 'laudista' | 'clinica' | 'admin';
+  onViewChange: (view: 'laudista' | 'clinica' | 'admin') => void;
   exams: Exam[];
   onOpenUpload: () => void;
 }
@@ -115,15 +114,6 @@ export const Header: React.FC<HeaderProps> = ({
               <span>Portal Clínicas</span>
             </button>
           )}
-
-          {/* Aba de Validação Pública */}
-          <button
-            className={`nav-tab-btn ${currentView === 'validador' ? 'active' : ''}`}
-            onClick={() => onViewChange('validador')}
-          >
-            <ShieldCheck size={18} />
-            <span>Validador de Laudos</span>
-          </button>
         </nav>
 
         {/* Ação Rápida e Perfil Ativo com Dropdown */}

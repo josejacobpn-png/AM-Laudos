@@ -11,7 +11,6 @@ import { AdminDashboard } from './components/AdminPortal/AdminDashboard';
 import { ReportEditor } from './components/Editor/ReportEditor';
 import { ExamUploadModal } from './components/ClinicPortal/ExamUploadModal';
 import { ReportViewModal } from './components/ReportViewModal';
-import { PublicValidator } from './components/PublicValidator';
 import { generateLaudoPdf } from './utils/pdfGenerator';
 import './App.css';
 
@@ -62,7 +61,7 @@ function MainAppContent() {
   });
 
   // Visão padrão com base no perfil do usuário logado
-  const [currentView, setCurrentView] = useState<'laudista' | 'clinica' | 'admin' | 'validador'>('admin');
+  const [currentView, setCurrentView] = useState<'laudista' | 'clinica' | 'admin'>('admin');
   const [selectedExamToReport, setSelectedExamToReport] = useState<Exam | null>(null);
   const [viewingReportExam, setViewingReportExam] = useState<Exam | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -257,15 +256,6 @@ function MainAppContent() {
                 onOpenUpload={handleOpenUpload}
                 onViewReport={handleViewReport}
                 onDownloadPdf={handleDownloadPdf}
-              />
-            )}
-
-            {currentView === 'validador' && (
-              <PublicValidator
-                exams={exams}
-                onViewReport={handleViewReport}
-                onDownloadPdf={handleDownloadPdf}
-                onBackToLogin={!isAuthenticated ? () => setCurrentView('laudista') : undefined}
               />
             )}
           </>
