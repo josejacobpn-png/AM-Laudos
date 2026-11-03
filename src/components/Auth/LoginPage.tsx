@@ -5,18 +5,17 @@ import {
   ShieldCheck, 
   Lock, 
   Mail, 
-  ArrowRight, 
-  FileCheck2
+  ArrowRight
 } from 'lucide-react';
 import { useAuth } from '../../context/AuthContext';
 import type { UserRole } from '../../types';
 import logoImg from '../../assets/logo-amlaudos.jpg';
 
 interface LoginPageProps {
-  onOpenPublicValidator: () => void;
+  onOpenPublicValidator?: () => void;
 }
 
-export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicValidator }) => {
+export const LoginPage: React.FC<LoginPageProps> = () => {
   const { login, isSupabase } = useAuth();
 
   const [activeRoleTab, setActiveRoleTab] = useState<UserRole>('ADMIN');
@@ -158,17 +157,8 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicValidator }) =
         </form>
 
 
-        {/* Rodapé com Validador Público e Informações Legais */}
+        {/* Rodapé com Informações Legais */}
         <div className="login-footer">
-          <button
-            type="button"
-            className="btn-public-validator-link"
-            onClick={onOpenPublicValidator}
-          >
-            <FileCheck2 size={16} />
-            <span>Consultar Validade de Laudo (Validador Público)</span>
-          </button>
-
           <div className="legal-notice">
             <p>Conforme Resoluções CFM 2.299/2021 e 2.314/2022 (Telemedicina). Acesso restrito e auditado por IP e CPF.</p>
           </div>

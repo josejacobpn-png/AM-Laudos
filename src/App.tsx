@@ -185,9 +185,9 @@ function MainAppContent() {
     setViewingReportExam(exam);
   };
 
-  // Se o usuário não estiver autenticado e não estiver na tela pública de validação, exibe Login
-  if (!isAuthenticated && currentView !== 'validador') {
-    return <LoginPage onOpenPublicValidator={() => setCurrentView('validador')} />;
+  // Se o usuário não estiver autenticado, exibe a tela de Login
+  if (!isAuthenticated) {
+    return <LoginPage />;
   }
 
   return (
