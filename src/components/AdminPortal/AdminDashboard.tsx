@@ -9,7 +9,8 @@ import {
   FileText, 
   AlertTriangle,
   Layers,
-  Pencil
+  Pencil,
+  Trash2
 } from 'lucide-react';
 import type { Clinic, Exam, UserProfile } from '../../types';
 import { DEMO_USERS } from '../../data/mockUsers';
@@ -52,8 +53,10 @@ interface AdminDashboardProps {
   doctors?: UserProfile[];
   onAddClinic: (newClinic: Clinic) => void;
   onUpdateClinic?: (updatedClinic: Clinic) => void;
+  onDeleteClinic?: (clinicId: string) => void;
   onAddDoctor?: (newDoctor: UserProfile) => void;
   onUpdateDoctor?: (updatedDoctor: UserProfile) => void;
+  onDeleteDoctor?: (doctorId: string) => void;
   onViewReport: (exam: Exam) => void;
 }
 
@@ -63,8 +66,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   doctors,
   onAddClinic,
   onUpdateClinic,
+  onDeleteClinic,
   onAddDoctor,
   onUpdateDoctor,
+  onDeleteDoctor,
   onViewReport
 }) => {
   const [activeTab, setActiveTab] = useState<'clinicas' | 'medicos' | 'auditoria' | 'exames_geral'>('clinicas');
@@ -126,6 +131,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [editDocTelefone, setEditDocTelefone] = useState('');
   const [isSubmittingEditDoctor, setIsSubmittingEditDoctor] = useState(false);
   const [editDoctorError, setEditDoctorError] = useState('');
+
+  // Estados para modal de confirmação / bloqueio de exclusão
+  const [deleteModalData, setDeleteModalData] = useState<{
+    isOpen: boolean;
+    type: 'CLINICA' | 'MEDICO';
+    id: string;
+    name: string;
+    detail: string;
+    linkedCount: number;
+    canDelete: boolean;
+    reasonText?: string;
+  }>({
+    isOpen: false,
+    type: 'CLINICA',
+    id: '',
+    name: '',
+    detail: '',
+    linkedCount: 0,
+    canDelete: false
+  });
+  const [isDeleting, setIsDeleting] = useState(false);
 
   // Métricas
   const totalClinics = clinics.length;
@@ -426,6 +452,100 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setEditingDoctor(null);
   };
 
+  // Solicitar exclusão de clínica
+  const handleRequestDeleteClinic = (clinic: Clinic) => {
+    const linkedExams = exams.filter(e => 
+      e.clinicId === clinic.id || 
+      (e.clinicName && e.clinicName.toLowerCase() === clinic.name.toLowerCase())
+    );
+    const count = linkedExams.length;
+    const canDelete = count === 0;
+
+    setDeleteModalData({
+      isOpen: true,
+      type: 'CLINICA',
+      id: clinic.id,
+      name: clinic.name,
+      detail: `CNES ${clinic.cnes}`,
+      linkedCount: count,
+      canDelete,
+      reasonText: canDelete 
+        ? undefined 
+        : `Esta clínica possui ${count} exame(s) registrado(s) no sistema. Por conformidade com as normas do CFM e LGPD, unidades com histórico de exames não podem ser excluídas para preservar a rastreabilidade médica.`
+    });
+  };
+
+  // Solicitar exclusão de médico laudista
+  const handleRequestDeleteDoctor = (doctor: UserProfile) => {
+    const linkedExams = exams.filter(e => {
+      const isDoctorReport = e.report && (
+        e.report.doctorCrm === doctor.crm ||
+        (doctor.crm && e.report.doctorCrm?.includes(doctor.crm)) ||
+        e.report.doctorName.toLowerCase().includes(doctor.name.toLowerCase()) ||
+        doctor.name.toLowerCase().includes(e.report.doctorName.toLowerCase())
+      );
+      const isLocked = e.lockedByDoctor && (
+        (doctor.crm && e.lockedByDoctor.includes(doctor.crm)) ||
+        e.lockedByDoctor.toLowerCase().includes(doctor.name.toLowerCase())
+      );
+      return isDoctorReport || isLocked;
+    });
+    const count = linkedExams.length;
+    const canDelete = count === 0;
+
+    setDeleteModalData({
+      isOpen: true,
+      type: 'MEDICO',
+      id: doctor.id,
+      name: doctor.name,
+      detail: `CRM ${doctor.crm || 'N/A'}-${doctor.uf || 'UF'}`,
+      linkedCount: count,
+      canDelete,
+      reasonText: canDelete 
+        ? undefined 
+        : `Este profissional possui ${count} laudo(s) ou atendimento(s) associado(s) a ele no sistema. Por exigência regulatória do CFM, o cadastro não pode ser excluído para garantir a validade e auditoria de documentos já emitidos.`
+    });
+  };
+
+  // Executar exclusão definitiva (quando canDelete === true)
+  const handleConfirmDelete = async () => {
+    if (!deleteModalData.canDelete || !deleteModalData.id) return;
+
+    setIsDeleting(true);
+
+    if (deleteModalData.type === 'CLINICA') {
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('perfis').delete().eq('clinica_id', deleteModalData.id);
+          await supabase.from('clinicas').delete().eq('id', deleteModalData.id);
+        } catch (err) {
+          console.warn('Erro ao excluir clínica no Supabase:', err);
+        }
+      }
+
+      if (onDeleteClinic) {
+        onDeleteClinic(deleteModalData.id);
+      }
+    } else {
+      if (isSupabaseConfigured && supabase) {
+        try {
+          await supabase.from('perfis').delete().eq('id', deleteModalData.id);
+        } catch (err) {
+          console.warn('Erro ao excluir perfil de médico no Supabase:', err);
+        }
+      }
+
+      if (onDeleteDoctor) {
+        onDeleteDoctor(deleteModalData.id);
+      } else {
+        setLocalDoctors(prev => prev.filter(d => d.id !== deleteModalData.id));
+      }
+    }
+
+    setIsDeleting(false);
+    setDeleteModalData(prev => ({ ...prev, isOpen: false }));
+  };
+
   return (
     <div className="admin-portal-wrap animate-fade-in">
       {/* Banner de Gestão e Governança */}
@@ -591,15 +711,30 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                           )}
                         </td>
                         <td style={{ textAlign: 'center' }}>
-                          <button
-                            type="button"
-                            className="btn-table-edit"
-                            onClick={() => handleOpenEditClinic(c)}
-                            title="Editar cadastro da clínica"
-                          >
-                            <Pencil size={13} />
-                            <span>Editar</span>
-                          </button>
+                          <div className="table-actions-group">
+                            <button
+                              type="button"
+                              className="btn-table-edit"
+                              onClick={() => handleOpenEditClinic(c)}
+                              title="Editar cadastro da clínica"
+                            >
+                              <Pencil size={13} />
+                              <span>Editar</span>
+                            </button>
+                            <button
+                              type="button"
+                              className={`btn-table-delete ${count > 0 ? 'blocked' : ''}`}
+                              onClick={() => handleRequestDeleteClinic(c)}
+                              title={
+                                count > 0 
+                                  ? `Não é possível excluir: existem ${count} exame(s) vinculado(s)` 
+                                  : 'Excluir cadastro da clínica'
+                              }
+                            >
+                              <Trash2 size={13} />
+                              <span>Excluir</span>
+                            </button>
+                          </div>
                         </td>
                       </tr>
                     );
@@ -656,35 +791,66 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     (d.email && d.email.toLowerCase().includes(doctorSearchTerm.toLowerCase())) ||
                     (d.specialty && d.specialty.toLowerCase().includes(doctorSearchTerm.toLowerCase()))
                   )
-                  .map(d => (
-                    <tr key={d.id}>
-                      <td>
-                        <strong>{d.name}</strong>
-                      </td>
-                      <td>{d.email}</td>
-                      <td>
-                        <code>CRM {d.crm}-{d.uf}</code>
-                      </td>
-                      <td>{d.specialty || 'Cardiologia'}</td>
-                      <td>{d.phone || '—'}</td>
-                      <td>
-                        <span className="badge-status-ready">
-                          <CheckCircle size={13} /> Regular
-                        </span>
-                      </td>
-                      <td style={{ textAlign: 'center' }}>
-                        <button
-                          type="button"
-                          className="btn-table-edit"
-                          onClick={() => handleOpenEditDoctor(d)}
-                          title="Editar cadastro do médico"
-                        >
-                          <Pencil size={13} />
-                          <span>Editar</span>
-                        </button>
-                      </td>
-                    </tr>
-                  ))}
+                  .map(d => {
+                    const docLinkedCount = exams.filter(e => {
+                      const isDoctorReport = e.report && (
+                        e.report.doctorCrm === d.crm ||
+                        (d.crm && e.report.doctorCrm?.includes(d.crm)) ||
+                        e.report.doctorName.toLowerCase().includes(d.name.toLowerCase()) ||
+                        d.name.toLowerCase().includes(e.report.doctorName.toLowerCase())
+                      );
+                      const isLocked = e.lockedByDoctor && (
+                        (d.crm && e.lockedByDoctor.includes(d.crm)) ||
+                        e.lockedByDoctor.toLowerCase().includes(d.name.toLowerCase())
+                      );
+                      return isDoctorReport || isLocked;
+                    }).length;
+
+                    return (
+                      <tr key={d.id}>
+                        <td>
+                          <strong>{d.name}</strong>
+                        </td>
+                        <td>{d.email}</td>
+                        <td>
+                          <code>CRM {d.crm}-{d.uf}</code>
+                        </td>
+                        <td>{d.specialty || 'Cardiologia'}</td>
+                        <td>{d.phone || '—'}</td>
+                        <td>
+                          <span className="badge-status-ready">
+                            <CheckCircle size={13} /> Regular
+                          </span>
+                        </td>
+                        <td style={{ textAlign: 'center' }}>
+                          <div className="table-actions-group">
+                            <button
+                              type="button"
+                              className="btn-table-edit"
+                              onClick={() => handleOpenEditDoctor(d)}
+                              title="Editar cadastro do médico"
+                            >
+                              <Pencil size={13} />
+                              <span>Editar</span>
+                            </button>
+                            <button
+                              type="button"
+                              className={`btn-table-delete ${docLinkedCount > 0 ? 'blocked' : ''}`}
+                              onClick={() => handleRequestDeleteDoctor(d)}
+                              title={
+                                docLinkedCount > 0 
+                                  ? `Não é possível excluir: existem ${docLinkedCount} laudo(s) ou exame(s) associado(s)` 
+                                  : 'Excluir cadastro do médico'
+                              }
+                            >
+                              <Trash2 size={13} />
+                              <span>Excluir</span>
+                            </button>
+                          </div>
+                        </td>
+                      </tr>
+                    );
+                  })}
               </tbody>
             </table>
           </div>
@@ -1286,6 +1452,122 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </button>
               </div>
             </form>
+          </div>
+        </div>
+      )}
+
+      {/* Modal de Confirmação ou Bloqueio de Exclusão */}
+      {deleteModalData.isOpen && (
+        <div className="modal-backdrop animate-fade-in">
+          <div className="modal-dialog" style={{ maxWidth: 500 }}>
+            <div className="modal-header">
+              <div className="modal-title-wrap">
+                {deleteModalData.canDelete ? (
+                  <Trash2 size={22} style={{ color: '#dc2626' }} />
+                ) : (
+                  <AlertTriangle size={22} style={{ color: '#d97706' }} />
+                )}
+                <h3>
+                  {deleteModalData.canDelete
+                    ? `Confirmar Exclusão de ${deleteModalData.type === 'CLINICA' ? 'Clínica' : 'Médico'}`
+                    : 'Exclusão Não Permitida'}
+                </h3>
+              </div>
+              <button
+                className="btn-close"
+                onClick={() => setDeleteModalData(prev => ({ ...prev, isOpen: false }))}
+              >
+                ×
+              </button>
+            </div>
+
+            <div className="modal-body-form" style={{ padding: '1.25rem 1.5rem', display: 'flex', flexDirection: 'column', gap: '1rem' }}>
+              {!deleteModalData.canDelete ? (
+                /* Caso Bloqueado: Existem dados vinculados */
+                <>
+                  <div style={{
+                    backgroundColor: '#fffbeb',
+                    border: '1px solid #fde68a',
+                    borderRadius: '8px',
+                    padding: '1rem',
+                    color: '#92400e',
+                    fontSize: '0.875rem',
+                    lineHeight: '1.45'
+                  }}>
+                    <strong style={{ display: 'block', marginBottom: '0.35rem', color: '#b45309' }}>
+                      Não é possível excluir este cadastro
+                    </strong>
+                    O cadastro de <strong>{deleteModalData.name}</strong> ({deleteModalData.detail}) possui{' '}
+                    <strong>{deleteModalData.linkedCount} exame(s)/laudo(s) associado(s)</strong> a ele no sistema.
+                  </div>
+
+                  <p style={{ fontSize: '0.825rem', color: '#64748b', margin: 0, lineHeight: '1.4' }}>
+                    Por exigência do CFM e normas de conformidade LGPD, unidades ou profissionais que possuem histórico médico registrado não podem ser excluídos, a fim de preservar a validade jurídica e a rastreabilidade dos laudos já emitidos.
+                  </p>
+
+                  <div style={{
+                    backgroundColor: '#f8fafc',
+                    border: '1px solid #e2e8f0',
+                    borderRadius: '6px',
+                    padding: '0.75rem',
+                    fontSize: '0.8rem',
+                    color: '#475569'
+                  }}>
+                    💡 <strong>O que fazer?</strong> Caso a clínica ou o médico não deva mais realizar atendimentos, você pode <strong>inativar o cadastro</strong> clicando no botão <strong>Editar</strong>.
+                  </div>
+
+                  <div className="modal-footer" style={{ marginTop: '0.5rem', padding: 0 }}>
+                    <button
+                      type="button"
+                      className="btn-primary-action"
+                      style={{ width: '100%' }}
+                      onClick={() => setDeleteModalData(prev => ({ ...prev, isOpen: false }))}
+                    >
+                      Entendido
+                    </button>
+                  </div>
+                </>
+              ) : (
+                /* Caso Permitido: Sem dados vinculados */
+                <>
+                  <div style={{
+                    backgroundColor: '#fef2f2',
+                    border: '1px solid #fecaca',
+                    borderRadius: '8px',
+                    padding: '1rem',
+                    color: '#991b1b',
+                    fontSize: '0.875rem',
+                    lineHeight: '1.45'
+                  }}>
+                    Tem certeza que deseja excluir permanentemente o cadastro de{' '}
+                    <strong>{deleteModalData.name}</strong> ({deleteModalData.detail})?
+                  </div>
+
+                  <p style={{ fontSize: '0.825rem', color: '#64748b', margin: 0, lineHeight: '1.4' }}>
+                    Esta unidade/profissional não possui nenhum exame ou laudo associado. Esta ação é definitiva e removerá todos os dados e credenciais de acesso vinculados.
+                  </p>
+
+                  <div className="modal-footer" style={{ marginTop: '0.5rem', padding: 0 }}>
+                    <button
+                      type="button"
+                      className="btn-secondary"
+                      onClick={() => setDeleteModalData(prev => ({ ...prev, isOpen: false }))}
+                    >
+                      Cancelar
+                    </button>
+                    <button
+                      type="button"
+                      disabled={isDeleting}
+                      className="btn-primary-action"
+                      style={{ backgroundColor: '#dc2626', borderColor: '#b91c1c' }}
+                      onClick={handleConfirmDelete}
+                    >
+                      {isDeleting ? 'Excluindo...' : 'Confirmar Exclusão'}
+                    </button>
+                  </div>
+                </>
+              )}
+            </div>
           </div>
         </div>
       )}

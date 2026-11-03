@@ -2556,6 +2556,48 @@
   border-color: #bae6fd;
 }
 
+.table-actions-group {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.4rem;
+}
+
+.btn-table-delete {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.35rem;
+  font-size: 0.78rem;
+  font-weight: 600;
+  padding: 0.35rem 0.65rem;
+  border-radius: var(--radius-sm);
+  background-color: #fef2f2;
+  color: #dc2626;
+  border: 1px solid #fee2e2;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.btn-table-delete:hover {
+  background-color: #fee2e2;
+  color: #b91c1c;
+  border-color: #fca5a5;
+}
+
+.btn-table-delete.blocked {
+  background-color: #f8fafc;
+  color: #94a3b8;
+  border-color: #e2e8f0;
+  cursor: pointer;
+}
+
+.btn-table-delete.blocked:hover {
+  background-color: #fffbeb;
+  color: #d97706;
+  border-color: #fde68a;
+}
+
 .waiting-tag {
   font-size: 0.72rem;
   color: var(--text-muted);
