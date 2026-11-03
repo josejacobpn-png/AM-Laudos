@@ -157,7 +157,7 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
 
           <button className="btn-sign-proceed" onClick={handleOpenSignature}>
             <ShieldCheck size={18} />
-            <span>Assinar Digitalmente (ICP-Brasil)</span>
+            <span>Assinar Digitalmente</span>
           </button>
         </div>
       </div>
@@ -333,7 +333,7 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
         </div>
       </div>
 
-      {/* Modal de Assinatura Digital ICP-Brasil */}
+      {/* Modal de Assinatura Digital */}
       <DigitalSignatureModal
         isOpen={isSignModalOpen}
         onClose={() => setIsSignModalOpen(false)}

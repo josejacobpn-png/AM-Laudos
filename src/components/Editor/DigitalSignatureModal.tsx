@@ -64,12 +64,12 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
       sha256Hash: sha256,
       qrCodeValidationUrl: validationUrl,
       certificateAuthority: certType === 'A1_ARQUIVO' 
-        ? 'AC Soluti Multipla v5 (ICP-Brasil)' 
+        ? 'Certificado A1 (Assinatura Digital CFM)' 
         : certType === 'A3_NUVEM_BIRD_ID' 
-        ? 'AC BirdID Certisign em Nuvem (ICP-Brasil)' 
-        : 'AC NeoID SERPRO (ICP-Brasil)',
+        ? 'Certificado em Nuvem (BirdID)' 
+        : 'Token Criptográfico USB / Smartcard',
       serialNumber: '7482-9901-2834-0192',
-      isQualifiedIcpBrasil: true
+      isQualifiedIcpBrasil: false
     };
 
     setTimeout(() => {
@@ -90,10 +90,10 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
       <div className="modal-dialog signature-modal">
         <div className="modal-header">
           <div className="modal-title-wrap">
-            <div className="icp-brasil-stamp-mini">ICP-Brasil</div>
+            <div className="icp-brasil-stamp-mini">AM LAUDOS</div>
             <div>
-              <h3>Assinatura Digital Qualificada</h3>
-              <p>Validade Jurídica conforme MP 2.200-2/2001 e Resoluções CFM nº 2.299/2021 e 2.314/2022</p>
+              <h3>Assinatura Digital do Laudo</h3>
+              <p>Em conformidade com as Resoluções CFM nº 2.299/2021 e 2.314/2022 (Telemedicina)</p>
             </div>
           </div>
           <button className="btn-close" onClick={onClose}><X size={20} /></button>
@@ -113,7 +113,7 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
 
             {/* Seleção do Tipo de Certificado Digital */}
             <div className="form-group">
-              <label>Selecione seu Certificado Digital ICP-Brasil</label>
+              <label>Selecione seu Certificado Digital de Assinatura</label>
               <div className="cert-type-options">
                 <label className={`cert-radio-option ${certType === 'A1_ARQUIVO' ? 'selected' : ''}`}>
                   <input
@@ -211,7 +211,7 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
                 ) : (
                   <>
                     <ShieldCheck size={18} />
-                    <span>Assinar Digitalmente (PAdES / ICP-Brasil)</span>
+                    <span>Assinar Laudo Digitalmente</span>
                   </>
                 )}
               </button>
@@ -226,12 +226,12 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
 
             <h3>Laudo Assinado com Sucesso!</h3>
             <p className="success-desc">
-              O documento eletrônico recebeu assinatura digital qualificada padrão ICP-Brasil e foi selado com validade jurídica nacional.
+              O documento eletrônico recebeu assinatura digital e foi selado com integridade e validade médica.
             </p>
 
             <div className="signed-details-card">
               <div className="stamp-visual-preview">
-                <div className="stamp-icp-header">ICP-Brasil • DOCUMENTO AUTÊNTICO</div>
+                <div className="stamp-icp-header">AM LAUDOS • DOCUMENTO AUTÊNTICO</div>
                 <div className="stamp-body">
                   <strong>{signedData?.doctorName}</strong>
                   <span>CRM {signedData?.crm}-{signedData?.uf} • RQE {signedData?.rqe}</span>

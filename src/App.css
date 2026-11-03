@@ -1644,7 +1644,7 @@
   box-shadow: 0 2px 8px rgba(239, 68, 68, 0.35);
 }
 
-/* Assinatura Digital ICP-Brasil Modal */
+/* Assinatura Digital Modal */
 .icp-brasil-stamp-mini {
   background-color: #0f172a;
   color: #ffffff;
@@ -2369,7 +2369,7 @@
 }
 
 /* --------------------------------------------------------------------------
-   10. VALIDADOR PÚBLICO ICP-BRASIL
+   10. VALIDADOR PÚBLICO DE LAUDOS
    -------------------------------------------------------------------------- */
 .validator-page-wrap {
   display: flex;

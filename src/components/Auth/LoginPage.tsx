@@ -166,11 +166,11 @@ export const LoginPage: React.FC<LoginPageProps> = ({ onOpenPublicValidator }) =
             onClick={onOpenPublicValidator}
           >
             <FileCheck2 size={16} />
-            <span>Consultar Validade de Laudo (Validador ICP-Brasil Público)</span>
+            <span>Consultar Validade de Laudo (Validador Público)</span>
           </button>
 
           <div className="legal-notice">
-            <p>Conforme MP nº 2.200-2/2001 e Resoluções CFM 2.299/2021 e 2.314/2022 (Telemedicina). Acesso restrito e auditado por IP e CPF.</p>
+            <p>Conforme Resoluções CFM 2.299/2021 e 2.314/2022 (Telemedicina). Acesso restrito e auditado por IP e CPF.</p>
           </div>
         </div>
       </div>

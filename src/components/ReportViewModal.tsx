@@ -50,7 +50,7 @@ export const ReportViewModal: React.FC<ReportViewModalProps> = ({
 
   const handleShareWhatsApp = () => {
     const text = encodeURIComponent(
-      `Prezado(a) ${exam.patient.name}, seu laudo eletrocardiográfico (Protocolo ${exam.protocolNumber}) já está disponível com assinatura digital ICP-Brasil. Acesse o portal para download ou verificação.`
+      `Prezado(a) ${exam.patient.name}, seu laudo eletrocardiográfico (Protocolo ${exam.protocolNumber}) já está disponível com assinatura digital. Acesse o portal para download ou verificação.`
     );
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
@@ -199,19 +199,19 @@ export const ReportViewModal: React.FC<ReportViewModalProps> = ({
               </div>
             </div>
 
-            {/* 8. Bloco de Assinatura Digital ICP-Brasil */}
+            {/* 8. Bloco de Assinatura Digital */}
             <div className="sheet-signature-box">
               <div className="icp-brasil-seal-card">
-                <div className="seal-top">ICP-Brasil</div>
-                <div className="seal-type">ASSINATURA QUALIFICADA</div>
-                <div className="seal-law">MP 2.200-2/01</div>
+                <div className="seal-top">AM LAUDOS</div>
+                <div className="seal-type">ASSINATURA DIGITAL</div>
+                <div className="seal-law">AUTÊNTICO</div>
                 <div className="seal-law">CFM 2.299/21</div>
               </div>
 
               <div className="sig-meta-content">
                 <h4>DR(A). {report.doctorName.toUpperCase()}</h4>
-                <p>Médico(a) Cardiologista • CRM: <strong>{report.doctorCrm}-{report.doctorUf}</strong> • RQE: <strong>{report.doctorRqe || '18492'}</strong></p>
-                <p>Certificado Digital: <strong>{sig?.certificateAuthority || 'AC Soluti Multipla v5 (ICP-Brasil)'}</strong></p>
+                <p>Médico(a) Cardiologista • CRM: <strong>{report.doctorCrm}-{report.doctorUf}</strong>{report.doctorRqe ? ` • RQE: ${report.doctorRqe}` : ''}</p>
+                <p>Assinatura Digital: <strong>{sig?.certificateAuthority || 'Certificado Digital Padrão CFM'}</strong></p>
                 <p>Carimbo do Tempo: <strong>{formatDateTimeBR(sig?.signedAt || report.createdAt)}</strong> (Horário de Brasília)</p>
 
                 <div className="hash-code-line">

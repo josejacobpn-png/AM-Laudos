@@ -78,7 +78,7 @@ export const PublicValidator: React.FC<PublicValidatorProps> = ({
         <div className="validator-hero-text">
           <h2>Validador Público de Laudos e Assinaturas Digitais</h2>
           <p>
-            Verifique a integridade, autenticidade e validade jurídica de laudos emitidos pela plataforma AM Laudos em conformidade com a MP 2.200-2/2001 e Resoluções CFM 2.299/2021 e 2.314/2022.
+            Verifique a integridade, autenticidade e validade de laudos emitidos pela plataforma AM Laudos em conformidade com as Resoluções CFM 2.299/2021 e 2.314/2022.
           </p>
         </div>
       </div>
@@ -129,10 +129,10 @@ export const PublicValidator: React.FC<PublicValidatorProps> = ({
                   <CheckCircle2 size={32} className="text-success" />
                   <div>
                     <h3>DOCUMENTO AUTÊNTICO E ÍNTEGRO</h3>
-                    <p>Assinatura Digital Qualificada ICP-Brasil conferida com sucesso</p>
+                    <p>Assinatura Digital conferida com sucesso</p>
                   </div>
                 </div>
-                <span className="badge-legal-stamp">ICP-Brasil / CFM Válido</span>
+                <span className="badge-legal-stamp">CFM Válido • Autêntico</span>
               </div>
 
               <div className="result-body-grid">

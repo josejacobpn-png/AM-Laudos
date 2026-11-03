@@ -47,7 +47,7 @@ export const ClinicDashboard: React.FC<ClinicDashboardProps> = ({
 
   const handleShareWhatsApp = (exam: Exam) => {
     const text = encodeURIComponent(
-      `Olá ${exam.patient.name}, seu laudo eletrocardiográfico (Protocolo ${exam.protocolNumber}) já foi emitido pelo cardiologista com assinatura digital ICP-Brasil e está disponível para download.`
+      `Olá ${exam.patient.name}, seu laudo eletrocardiográfico (Protocolo ${exam.protocolNumber}) já foi emitido pelo cardiologista com assinatura digital e está disponível para download.`
     );
     window.open(`https://api.whatsapp.com/send?text=${text}`, '_blank');
   };
@@ -151,7 +151,7 @@ export const ClinicDashboard: React.FC<ClinicDashboardProps> = ({
           </div>
           <div>
             <span className="metric-value">100%</span>
-            <span className="metric-label">Assinados ICP-Brasil</span>
+            <span className="metric-label">Laudos Assinados</span>
           </div>
         </div>
       </div>

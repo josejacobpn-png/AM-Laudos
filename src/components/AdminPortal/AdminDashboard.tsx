@@ -772,7 +772,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <td>{formatDateTimeBR(new Date(Date.now() - 5 * 60 * 1000).toISOString())}</td>
                   <td>Dr. Fernando Albuquerque</td>
                   <td>Médico Laudista</td>
-                  <td><strong>ASSINATURA DIGITAL ICP-BRASIL</strong></td>
+                  <td><strong>ASSINATURA DIGITAL DO LAUDO</strong></td>
                   <td><code>ECG-2026-948102</code></td>
                   <td>187.32.19.45</td>
                 </tr>

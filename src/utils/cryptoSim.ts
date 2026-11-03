@@ -1,4 +1,4 @@
-// Utilitário para cálculo de Hash criptográfico SHA-256 e geração de dados de Assinatura Qualificada ICP-Brasil
+// Utilitário para cálculo de Hash criptográfico SHA-256 e geração de dados de Assinatura Digital do Laudo
 
 export async function calculateSha256(text: string): Promise<string> {
   if (typeof window !== 'undefined' && window.crypto && window.crypto.subtle) {

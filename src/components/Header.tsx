@@ -122,7 +122,7 @@ export const Header: React.FC<HeaderProps> = ({
             onClick={() => onViewChange('validador')}
           >
             <ShieldCheck size={18} />
-            <span>Validador ICP-Brasil</span>
+            <span>Validador de Laudos</span>
           </button>
         </nav>
 

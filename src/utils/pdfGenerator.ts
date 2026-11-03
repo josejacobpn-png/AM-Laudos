@@ -201,7 +201,7 @@ export function generateLaudoPdf(exam: Exam, report: Report): jsPDF {
 
   y += 28;
 
-  // 8. Seção de Assinatura Digital Qualificada (ICP-Brasil)
+  // 8. Seção de Assinatura Digital do Laudo
   const sig = report.signature;
   const sigBoxY = Math.max(y, pageHeight - 48);
 
@@ -210,16 +210,16 @@ export function generateLaudoPdf(exam: Exam, report: Report): jsPDF {
   doc.setLineWidth(0.4);
   doc.roundedRect(margin, sigBoxY, pageWidth - (margin * 2), 34, 2, 2, 'FD');
 
-  // Selo visual de autenticação ICP-Brasil
+  // Selo visual de autenticação do Laudo
   doc.setFillColor(15, 23, 42);
   doc.rect(margin + 4, sigBoxY + 4, 26, 26, 'F');
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7);
-  doc.text('ICP-Brasil', margin + 7, sigBoxY + 11);
+  doc.setFontSize(6.5);
+  doc.text('AM LAUDOS', margin + 6, sigBoxY + 11);
   doc.setFontSize(5.5);
   doc.text('ASSINATURA', margin + 7, sigBoxY + 16);
-  doc.text('QUALIFICADA', margin + 6.5, sigBoxY + 20);
+  doc.text('DIGITAL', margin + 9.5, sigBoxY + 20);
   doc.text('CFM 2.299/21', margin + 6.5, sigBoxY + 25);
 
   // Informações da Assinatura
@@ -230,8 +230,8 @@ export function generateLaudoPdf(exam: Exam, report: Report): jsPDF {
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);
-  doc.text(`Médico(a) Cardiologista  |  CRM: ${report.doctorCrm}-${report.doctorUf}  |  RQE: ${report.doctorRqe || '18492'}`, margin + 34, sigBoxY + 13);
-  doc.text(`Certificado Digital: ${sig?.certificateAuthority || 'AC Soluti Multipla v5 (ICP-Brasil)'} - PAdES`, margin + 34, sigBoxY + 17.5);
+  doc.text(`Médico(a) Cardiologista  |  CRM: ${report.doctorCrm}-${report.doctorUf}${report.doctorRqe ? `  |  RQE: ${report.doctorRqe}` : ''}`, margin + 34, sigBoxY + 13);
+  doc.text(`Assinatura Digital: ${sig?.certificateAuthority || 'Certificado Digital Padrão CFM'} - PAdES`, margin + 34, sigBoxY + 17.5);
   doc.text(`Carimbo do Tempo: ${formatDateTimeBR(sig?.signedAt || report.createdAt)} (Horário Oficial de Brasília)`, margin + 34, sigBoxY + 22);
 
   // Hash SHA-256 e validação
