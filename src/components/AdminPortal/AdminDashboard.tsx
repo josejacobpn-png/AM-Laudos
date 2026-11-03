@@ -706,30 +706,32 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
 
-              <div className="form-group">
-                <label>Telefone / WhatsApp Profissional</label>
-                <input
-                  type="text"
-                  placeholder="Ex: (11) 98765-4321"
-                  value={newDocTelefone}
-                  onChange={(e) => setNewDocTelefone(e.target.value)}
-                  className="form-control"
-                />
-              </div>
+              <div className="form-row">
+                <div className="form-group flex-1">
+                  <label>Especialidade Médica Principal</label>
+                  <select
+                    value={newDocEspecialidade}
+                    onChange={(e) => setNewDocEspecialidade(e.target.value)}
+                    className="form-control"
+                  >
+                    <option value="Cardiologia Clínica e Eletrofisiologia">Cardiologia Clínica e Eletrofisiologia</option>
+                    <option value="Cardiologia Clínica">Cardiologia Clínica</option>
+                    <option value="Eletrocardiografia de Alta Resolução">Eletrocardiografia de Alta Resolução</option>
+                    <option value="Ergometria e Métodos Gráficos">Ergometria e Métodos Gráficos</option>
+                    <option value="Ecocardiografia e Imagem Cardiovascular">Ecocardiografia e Imagem Cardiovascular</option>
+                  </select>
+                </div>
 
-              <div className="form-group">
-                <label>Especialidade Médica Principal</label>
-                <select
-                  value={newDocEspecialidade}
-                  onChange={(e) => setNewDocEspecialidade(e.target.value)}
-                  className="form-control"
-                >
-                  <option value="Cardiologia Clínica e Eletrofisiologia">Cardiologia Clínica e Eletrofisiologia</option>
-                  <option value="Cardiologia Clínica">Cardiologia Clínica</option>
-                  <option value="Eletrocardiografia de Alta Resolução">Eletrocardiografia de Alta Resolução</option>
-                  <option value="Ergometria e Métodos Gráficos">Ergometria e Métodos Gráficos</option>
-                  <option value="Ecocardiografia e Imagem Cardiovascular">Ecocardiografia e Imagem Cardiovascular</option>
-                </select>
+                <div className="form-group flex-1">
+                  <label>Telefone / WhatsApp Profissional</label>
+                  <input
+                    type="text"
+                    placeholder="Ex: (11) 98765-4321"
+                    value={newDocTelefone}
+                    onChange={(e) => setNewDocTelefone(e.target.value)}
+                    className="form-control"
+                  />
+                </div>
               </div>
 
               <div className="modal-footer">
