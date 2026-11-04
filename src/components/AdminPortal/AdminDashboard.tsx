@@ -220,6 +220,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         if (authErr) {
           console.warn('Aviso Supabase Auth ao registrar clínica:', authErr.message);
+          const isAlready = authErr.message?.toLowerCase().includes('already registered') || (authErr as any)?.status === 422;
+          if (isAlready) {
+            setIsSubmittingClinic(false);
+            setClinicFormError(`O e-mail "${cleanEmail}" já está cadastrado no sistema. Por favor, utilize outro e-mail para o acesso desta clínica.`);
+            return;
+          }
         } else if (authData.user) {
           await supabase.from('perfis').upsert({
             id: authData.user.id,
@@ -312,21 +318,111 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           }
         });
 
+        let existingUserId: string | null = null;
+
         if (authErr) {
-          console.warn('Aviso Supabase Auth ao registrar médico:', authErr.message);
-          setIsSubmittingDoctor(false);
-          setDoctorFormError(`Falha ao registrar médico no Supabase: ${authErr.message}`);
-          return;
-        }
+          const isAlreadyRegistered =
+            authErr.message?.toLowerCase().includes('already registered') ||
+            authErr.message?.toLowerCase().includes('already exists') ||
+            (authErr as any)?.status === 422;
 
-        // Caso o usuário já exista, o Supabase Auth pode retornar identities vazio
-        if (authData?.user?.identities && authData.user.identities.length === 0) {
-          setIsSubmittingDoctor(false);
-          setDoctorFormError('Este e-mail já está cadastrado no sistema. Por favor, utilize outro e-mail.');
-          return;
-        }
+          if (isAlreadyRegistered) {
+            // 1. Tentar login direto no authClient com a senha fornecida para recuperar o ID
+            try {
+              const { data: signInData } = await authClient.auth.signInWithPassword({
+                email: cleanEmail,
+                password: newDocSenha
+              });
+              if (signInData?.user?.id) {
+                existingUserId = signInData.user.id;
+                await authClient.auth.signOut();
+              }
+            } catch {
+              // Segue para verificação pelo CRM
+            }
 
-        if (authData?.user) {
+            // 2. Se não autenticou pela senha, busca perfil existente no banco pelo CRM
+            if (!existingUserId) {
+              const { data: profByCrm } = await supabase
+                .from('perfis')
+                .select('id')
+                .eq('tipo', 'MEDICO_LAUDISTA')
+                .eq('crm', cleanCrm)
+                .maybeSingle();
+
+              if (profByCrm?.id) {
+                existingUserId = profByCrm.id;
+              }
+            }
+
+            // Se identificamos o registro do médico, atualizamos o perfil e habilitamos sem erro
+            if (existingUserId) {
+              createdId = existingUserId;
+              await supabase.from('perfis').upsert({
+                id: existingUserId,
+                nome_completo: formattedName,
+                tipo: 'MEDICO_LAUDISTA',
+                crm: cleanCrm,
+                uf_crm: newDocUf,
+                especialidade: newDocEspecialidade,
+                telefone: newDocTelefone.trim() || undefined
+              });
+            } else {
+              setIsSubmittingDoctor(false);
+              setDoctorFormError(`O e-mail "${cleanEmail}" já está cadastrado no sistema. Se o médico já existe, edite seus dados diretamente na tabela abaixo. Caso contrário, utilize outro e-mail.`);
+              return;
+            }
+          } else {
+            console.warn('Aviso Supabase Auth ao registrar médico:', authErr.message);
+            setIsSubmittingDoctor(false);
+            setDoctorFormError(`Falha ao registrar médico no Supabase: ${authErr.message}`);
+            return;
+          }
+        } else if (authData?.user?.identities && authData.user.identities.length === 0) {
+          // Caso o Supabase retorne identities vazio (e-mail já cadastrado)
+          try {
+            const { data: signInData } = await authClient.auth.signInWithPassword({
+              email: cleanEmail,
+              password: newDocSenha
+            });
+            if (signInData?.user?.id) {
+              existingUserId = signInData.user.id;
+              await authClient.auth.signOut();
+            }
+          } catch {
+            // Segue para verificação por CRM
+          }
+
+          if (!existingUserId) {
+            const { data: profByCrm } = await supabase
+              .from('perfis')
+              .select('id')
+              .eq('tipo', 'MEDICO_LAUDISTA')
+              .eq('crm', cleanCrm)
+              .maybeSingle();
+
+            if (profByCrm?.id) {
+              existingUserId = profByCrm.id;
+            }
+          }
+
+          if (existingUserId) {
+            createdId = existingUserId;
+            await supabase.from('perfis').upsert({
+              id: existingUserId,
+              nome_completo: formattedName,
+              tipo: 'MEDICO_LAUDISTA',
+              crm: cleanCrm,
+              uf_crm: newDocUf,
+              especialidade: newDocEspecialidade,
+              telefone: newDocTelefone.trim() || undefined
+            });
+          } else {
+            setIsSubmittingDoctor(false);
+            setDoctorFormError(`O e-mail "${cleanEmail}" já está cadastrado no sistema. Se o médico já existe, edite seus dados diretamente na tabela abaixo. Caso contrário, utilize outro e-mail.`);
+            return;
+          }
+        } else if (authData?.user) {
           createdId = authData.user.id;
           const { error: perfilErr } = await supabase.from('perfis').upsert({
             id: authData.user.id,

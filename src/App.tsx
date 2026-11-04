@@ -114,16 +114,27 @@ function MainAppContent() {
       .eq('tipo', 'MEDICO_LAUDISTA')
       .then(({ data, error }) => {
         if (!error && data && data.length > 0) {
-          const remoteDocs: UserProfile[] = data.map((p: any) => ({
-            id: p.id,
-            name: p.nome_completo,
-            email: p.email || 'medico@amlaudos.com.br',
-            role: 'MEDICO_LAUDISTA',
-            crm: p.crm || '',
-            uf: p.uf_crm || 'SP',
-            specialty: p.especialidade || 'Cardiologia Clínica',
-            phone: p.telefone
-          }));
+          const savedDocs: UserProfile[] = (() => {
+            try {
+              return JSON.parse(localStorage.getItem('am_laudos_doctors_v2') || '[]');
+            } catch {
+              return [];
+            }
+          })();
+
+          const remoteDocs: UserProfile[] = data.map((p: any) => {
+            const matchedSaved = savedDocs.find(s => s.id === p.id || (s.crm && s.crm === p.crm));
+            return {
+              id: p.id,
+              name: p.nome_completo,
+              email: matchedSaved?.email || p.email || 'medico@amlaudos.com.br',
+              role: 'MEDICO_LAUDISTA',
+              crm: p.crm || '',
+              uf: p.uf_crm || 'SP',
+              specialty: p.especialidade || 'Cardiologia Clínica',
+              phone: p.telefone || matchedSaved?.phone
+            };
+          });
           setDoctors(remoteDocs);
         }
       });
@@ -178,7 +189,15 @@ function MainAppContent() {
 
   // Handler de cadastro de novo médico laudista pelo Admin
   const handleAddDoctor = (newDoctor: UserProfile) => {
-    setDoctors(prev => [...prev, newDoctor]);
+    setDoctors(prev => {
+      const idx = prev.findIndex(d => d.id === newDoctor.id || (d.crm && d.crm === newDoctor.crm && d.uf === newDoctor.uf));
+      if (idx >= 0) {
+        const updated = [...prev];
+        updated[idx] = { ...updated[idx], ...newDoctor };
+        return updated;
+      }
+      return [...prev, newDoctor];
+    });
   };
 
   // Handler de atualização de médico existente pelo Admin
