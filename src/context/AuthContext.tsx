@@ -7,7 +7,7 @@ interface AuthContextType {
   currentUser: UserProfile | null;
   isAuthenticated: boolean;
   role: UserRole | null;
-  login: (email: string, password: string) => Promise<{ success: boolean; error?: string }>;
+  login: (email: string, password: string, selectedRole?: UserRole) => Promise<{ success: boolean; error?: string }>;
   quickLogin: (user: UserProfile) => void;
   logout: () => Promise<void>;
   isSupabase: boolean;
@@ -40,59 +40,89 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const { data: { subscription } } = client.auth.onAuthStateChange(async (event, session) => {
       if (session?.user) {
         const userEmail = session.user.email?.trim().toLowerCase() || '';
-        const isMasterAdmin = userEmail === 'g2autodev@gmail.com' || userEmail.includes('admin');
+        const userMeta = session.user.user_metadata || {};
+        const isMasterAdmin = userEmail === 'g2autodev@gmail.com' || userEmail.includes('admin') || userMeta.tipo === 'ADMIN';
 
-        // Buscar dados do perfil na tabela public.perfis
+        // 1. Buscar perfil no banco
         let { data: profile } = await client
           .from('perfis')
           .select('*, clinicas(nome)')
           .eq('id', session.user.id)
-          .single();
+          .maybeSingle();
 
-        // Se o perfil ainda não existir na tabela perfis, tenta criar automaticamente
-        if (!profile) {
-          const role: UserRole = isMasterAdmin 
-            ? 'ADMIN' 
-            : (userEmail.includes('medico') || userEmail.includes('cardio') ? 'MEDICO_LAUDISTA' : 'TECNICO_CLINICA');
-          
-          const defaultName = isMasterAdmin 
-            ? 'Administrador Geral' 
-            : userEmail.split('@')[0].toUpperCase();
-
+        // 2. Verificar correspondência com médicos salvos no storage
+        const savedDoctors: UserProfile[] = (() => {
           try {
-            const { data: newProfile } = await client
-              .from('perfis')
-              .insert({
-                id: session.user.id,
-                nome_completo: defaultName,
-                tipo: role
-              })
-              .select('*, clinicas(nome)')
-              .single();
-
-            if (newProfile) {
-              profile = newProfile;
-            }
+            return [
+              ...JSON.parse(localStorage.getItem('am_laudos_doctors_v2') || '[]'),
+              ...JSON.parse(localStorage.getItem('am_laudos_doctors_v1') || '[]')
+            ];
           } catch {
-            // Ignorar erro de RLS e usar fallback em memória
+            return [];
           }
+        })();
+        const localDocMatch = savedDoctors.find(d => 
+          (d.email && d.email.toLowerCase() === userEmail) || 
+          d.id === session.user.id
+        );
+
+        // 3. Determinar perfil real do usuário
+        let finalRole: UserRole = 'TECNICO_CLINICA';
+        if (isMasterAdmin) {
+          finalRole = 'ADMIN';
+        } else if (
+          userMeta.tipo === 'MEDICO_LAUDISTA' || 
+          profile?.tipo === 'MEDICO_LAUDISTA' || 
+          localDocMatch ||
+          userMeta.crm ||
+          profile?.crm ||
+          userEmail.includes('medico') || 
+          userEmail.includes('cardio') || 
+          userEmail.includes('dr.') ||
+          userEmail.startsWith('dr')
+        ) {
+          finalRole = 'MEDICO_LAUDISTA';
+        } else if (profile?.tipo) {
+          finalRole = profile.tipo as UserRole;
         }
 
-        const finalRole: UserRole = isMasterAdmin 
-          ? 'ADMIN' 
-          : (profile?.tipo as UserRole || 'TECNICO_CLINICA');
+        const finalName = userMeta.nome_completo || profile?.nome_completo || localDocMatch?.name || (isMasterAdmin ? 'Administrador Geral' : userEmail.split('@')[0].toUpperCase());
+        const finalCrm = userMeta.crm || profile?.crm || localDocMatch?.crm;
+        const finalUf = userMeta.uf_crm || profile?.uf_crm || localDocMatch?.uf || (finalRole === 'MEDICO_LAUDISTA' ? 'SP' : undefined);
+        const finalSpecialty = userMeta.especialidade || profile?.especialidade || localDocMatch?.specialty || (finalRole === 'MEDICO_LAUDISTA' ? 'Cardiologia Clínica' : undefined);
+        const finalPhone = userMeta.telefone || profile?.telefone || localDocMatch?.phone;
+        const finalClinicId = profile?.clinica_id || localDocMatch?.clinicId;
+        const finalClinicName = profile?.clinicas?.nome || localDocMatch?.clinicName;
+
+        // Auto-sincronizar / reparar perfil no Supabase se for médico e a tabela perfis estiver incompleta
+        if (finalRole === 'MEDICO_LAUDISTA' && (!profile || profile.tipo !== 'MEDICO_LAUDISTA' || !profile.crm)) {
+          try {
+            await client.from('perfis').upsert({
+              id: session.user.id,
+              nome_completo: finalName,
+              tipo: 'MEDICO_LAUDISTA',
+              crm: finalCrm,
+              uf_crm: finalUf,
+              especialidade: finalSpecialty,
+              telefone: finalPhone
+            });
+          } catch (e) {
+            console.warn('Aviso ao sincronizar perfil do médico:', e);
+          }
+        }
 
         const userProfile: UserProfile = {
           id: session.user.id,
           email: session.user.email || userEmail,
-          name: profile?.nome_completo || (isMasterAdmin ? 'Administrador Geral' : userEmail),
+          name: finalName,
           role: finalRole,
-          clinicId: profile?.clinica_id,
-          clinicName: profile?.clinicas?.nome,
-          crm: profile?.crm,
-          uf: profile?.uf_crm,
-          rqe: profile?.rqe,
-          specialty: profile?.especialidade
+          clinicId: finalClinicId,
+          clinicName: finalClinicName,
+          crm: finalCrm,
+          uf: finalUf,
+          rqe: profile?.rqe || localDocMatch?.rqe,
+          specialty: finalSpecialty,
+          phone: finalPhone
         };
         setCurrentUser(userProfile);
       } else if (event === 'SIGNED_OUT') {
@@ -105,7 +135,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     };
   }, []);
 
-  const login = async (email: string, password: string): Promise<{ success: boolean; error?: string }> => {
+  const login = async (email: string, password: string, selectedRole?: UserRole): Promise<{ success: boolean; error?: string }> => {
     const cleanEmail = email.trim().toLowerCase();
 
     // 1. Tentar autenticação no Supabase se configurado
@@ -121,57 +151,88 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         }
 
         if (data.user) {
-          const isMasterAdmin = cleanEmail === 'g2autodev@gmail.com' || cleanEmail.includes('admin');
+          const userMeta = data.user.user_metadata || {};
+          const isMasterAdmin = cleanEmail === 'g2autodev@gmail.com' || cleanEmail.includes('admin') || userMeta.tipo === 'ADMIN';
 
           let { data: profile } = await supabase
             .from('perfis')
             .select('*, clinicas(nome)')
             .eq('id', data.user.id)
-            .single();
+            .maybeSingle();
 
-          if (!profile) {
-            const role: UserRole = isMasterAdmin 
-              ? 'ADMIN' 
-              : (cleanEmail.includes('medico') || cleanEmail.includes('cardio') ? 'MEDICO_LAUDISTA' : 'TECNICO_CLINICA');
-            
-            const defaultName = isMasterAdmin 
-              ? 'Administrador Geral' 
-              : cleanEmail.split('@')[0].toUpperCase();
-
+          const savedDoctors: UserProfile[] = (() => {
             try {
-              const { data: newProfile } = await supabase
-                .from('perfis')
-                .insert({
-                  id: data.user.id,
-                  nome_completo: defaultName,
-                  tipo: role
-                })
-                .select('*, clinicas(nome)')
-                .single();
-
-              if (newProfile) {
-                profile = newProfile;
-              }
+              return [
+                ...JSON.parse(localStorage.getItem('am_laudos_doctors_v2') || '[]'),
+                ...JSON.parse(localStorage.getItem('am_laudos_doctors_v1') || '[]')
+              ];
             } catch {
-              // Ignorar erro e usar fallback
+              return [];
             }
+          })();
+          const localDocMatch = savedDoctors.find(d => 
+            (d.email && d.email.toLowerCase() === cleanEmail) || 
+            d.id === data.user.id
+          );
+
+          let finalRole: UserRole = 'TECNICO_CLINICA';
+          if (isMasterAdmin) {
+            finalRole = 'ADMIN';
+          } else if (
+            userMeta.tipo === 'MEDICO_LAUDISTA' || 
+            profile?.tipo === 'MEDICO_LAUDISTA' || 
+            selectedRole === 'MEDICO_LAUDISTA' ||
+            localDocMatch ||
+            userMeta.crm ||
+            profile?.crm ||
+            cleanEmail.includes('medico') || 
+            cleanEmail.includes('cardio') || 
+            cleanEmail.includes('dr.') ||
+            cleanEmail.startsWith('dr')
+          ) {
+            finalRole = 'MEDICO_LAUDISTA';
+          } else if (profile?.tipo) {
+            finalRole = profile.tipo as UserRole;
+          } else if (selectedRole) {
+            finalRole = selectedRole;
           }
 
-          const finalRole: UserRole = isMasterAdmin 
-            ? 'ADMIN' 
-            : (profile?.tipo as UserRole || 'TECNICO_CLINICA');
+          const finalName = userMeta.nome_completo || profile?.nome_completo || localDocMatch?.name || (isMasterAdmin ? 'Administrador Geral' : cleanEmail.split('@')[0].toUpperCase());
+          const finalCrm = userMeta.crm || profile?.crm || localDocMatch?.crm;
+          const finalUf = userMeta.uf_crm || profile?.uf_crm || localDocMatch?.uf || (finalRole === 'MEDICO_LAUDISTA' ? 'SP' : undefined);
+          const finalSpecialty = userMeta.especialidade || profile?.especialidade || localDocMatch?.specialty || (finalRole === 'MEDICO_LAUDISTA' ? 'Cardiologia Clínica' : undefined);
+          const finalPhone = userMeta.telefone || profile?.telefone || localDocMatch?.phone;
+          const finalClinicId = profile?.clinica_id || localDocMatch?.clinicId;
+          const finalClinicName = profile?.clinicas?.nome || localDocMatch?.clinicName;
+
+          if (finalRole === 'MEDICO_LAUDISTA' && (!profile || profile.tipo !== 'MEDICO_LAUDISTA' || !profile.crm)) {
+            try {
+              await supabase.from('perfis').upsert({
+                id: data.user.id,
+                nome_completo: finalName,
+                tipo: 'MEDICO_LAUDISTA',
+                crm: finalCrm,
+                uf_crm: finalUf,
+                especialidade: finalSpecialty,
+                telefone: finalPhone
+              });
+            } catch (e) {
+              console.warn('Aviso ao sincronizar perfil do médico no login:', e);
+            }
+          }
 
           setCurrentUser({
             id: data.user.id,
             email: data.user.email || cleanEmail,
-            name: profile?.nome_completo || (isMasterAdmin ? 'Administrador Geral' : cleanEmail),
+            name: finalName,
             role: finalRole,
-            clinicId: profile?.clinica_id,
-            clinicName: profile?.clinicas?.nome,
-            crm: profile?.crm,
-            uf: profile?.uf_crm,
-            rqe: profile?.rqe,
-            specialty: profile?.especialidade
+            clinicId: finalClinicId,
+            clinicName: finalClinicName,
+            crm: finalCrm,
+            uf: finalUf,
+            rqe: profile?.rqe || localDocMatch?.rqe,
+            specialty: finalSpecialty,
+            phone: finalPhone
           });
           return { success: true };
         }
@@ -184,23 +245,24 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     // 2. Fallback / Modo Local: Verificar médicos cadastrados e usuários demo
     let localDoctors: UserProfile[] = [];
     try {
-      const savedDocs = localStorage.getItem('am_laudos_doctors_v1');
-      if (savedDocs) {
-        localDoctors = JSON.parse(savedDocs);
-      }
+      const savedDocs = [
+        ...JSON.parse(localStorage.getItem('am_laudos_doctors_v2') || '[]'),
+        ...JSON.parse(localStorage.getItem('am_laudos_doctors_v1') || '[]')
+      ];
+      localDoctors = savedDocs;
     } catch {
       // Ignorar erro
     }
 
     const allUsers = [...localDoctors, ...DEMO_USERS];
-    const matchedUser = allUsers.find(u => u.email.toLowerCase() === cleanEmail);
+    const matchedUser = allUsers.find(u => u.email?.toLowerCase() === cleanEmail);
     if (matchedUser) {
       setCurrentUser(matchedUser);
       return { success: true };
     }
 
-    // Se informou um email novo qualquer, cria uma conta temporária com base no domínio
-    let role: UserRole = 'TECNICO_CLINICA';
+    // Se informou um email novo qualquer em modo local/demo
+    let role: UserRole = selectedRole || 'TECNICO_CLINICA';
     let clinicName = 'Clínica Parceira';
     if (cleanEmail === 'g2autodev@gmail.com' || cleanEmail.includes('admin')) {
       role = 'ADMIN';
@@ -218,6 +280,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
       rqe: role === 'MEDICO_LAUDISTA' ? '19402' : undefined,
       clinicName: role === 'TECNICO_CLINICA' ? clinicName : undefined
     };
+
+    setCurrentUser(newUser);
+    return { success: true };
 
     setCurrentUser(newUser);
     return { success: true };

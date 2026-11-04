@@ -34,7 +34,7 @@ export const LoginPage: React.FC<LoginPageProps> = () => {
     setErrorMessage('');
     setIsLoading(true);
 
-    const result = await login(email, password);
+    const result = await login(email, password, activeRoleTab);
     setIsLoading(false);
 
     if (!result.success) {

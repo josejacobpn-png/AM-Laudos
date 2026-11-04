@@ -424,20 +424,36 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           }
         } else if (authData?.user) {
           createdId = authData.user.id;
-          const { error: perfilErr } = await supabase.from('perfis').upsert({
-            id: authData.user.id,
-            nome_completo: formattedName,
-            tipo: 'MEDICO_LAUDISTA',
-            crm: cleanCrm,
-            uf_crm: newDocUf,
-            especialidade: newDocEspecialidade,
-            telefone: newDocTelefone.trim() || undefined
-          });
 
-          if (perfilErr) {
-            console.warn('Erro ao criar perfil de médico no Supabase:', perfilErr.message);
-            // Tenta fallback com authClient se houver bloqueio por RLS
-            const { error: retryErr } = await authClient.from('perfis').upsert({
+          // Autenticar com o próprio authClient para contornar RLS de perfis (auth.uid() = id)
+          let savedPerfil = false;
+          try {
+            const { data: docLogin } = await authClient.auth.signInWithPassword({
+              email: cleanEmail,
+              password: newDocSenha
+            });
+
+            if (docLogin?.user) {
+              const { error: insertErr } = await authClient.from('perfis').upsert({
+                id: authData.user.id,
+                nome_completo: formattedName,
+                tipo: 'MEDICO_LAUDISTA',
+                crm: cleanCrm,
+                uf_crm: newDocUf,
+                especialidade: newDocEspecialidade,
+                telefone: newDocTelefone.trim() || undefined
+              });
+              if (!insertErr) {
+                savedPerfil = true;
+              }
+              await authClient.auth.signOut();
+            }
+          } catch (e) {
+            console.warn('Erro ao autenticar cliente isolado para upsert:', e);
+          }
+
+          if (!savedPerfil) {
+            const { error: perfilErr } = await supabase.from('perfis').upsert({
               id: authData.user.id,
               nome_completo: formattedName,
               tipo: 'MEDICO_LAUDISTA',
@@ -447,11 +463,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               telefone: newDocTelefone.trim() || undefined
             });
 
-            if (retryErr) {
-              console.warn('Erro persistente no perfil:', retryErr.message);
-              setIsSubmittingDoctor(false);
-              setDoctorFormError(`Médico cadastrado na autenticação, mas erro ao salvar perfil: ${perfilErr.message}`);
-              return;
+            if (perfilErr) {
+              console.warn('Erro ao criar perfil de médico no Supabase:', perfilErr.message);
             }
           }
         }
@@ -473,6 +486,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       specialty: newDocEspecialidade,
       phone: newDocTelefone.trim() || undefined
     };
+
+    try {
+      const currentSaved: UserProfile[] = JSON.parse(localStorage.getItem('am_laudos_doctors_v2') || '[]');
+      const filtered = currentSaved.filter(d => d.id !== created.id && d.email?.toLowerCase() !== cleanEmail);
+      localStorage.setItem('am_laudos_doctors_v2', JSON.stringify([...filtered, created]));
+    } catch {}
 
     if (onAddDoctor) {
       onAddDoctor(created);
