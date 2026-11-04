@@ -929,6 +929,11 @@
   grid-template-columns: 1.25fr 1fr;
   gap: 1.25rem;
   min-height: calc(100vh - 240px);
+  transition: grid-template-columns 0.25s ease;
+}
+
+.editor-split-container.layout-expanded {
+  grid-template-columns: 2fr 1fr;
 }
 
 @media (max-width: 1200px) {
@@ -1200,70 +1205,244 @@
   pointer-events: none;
 }
 
-/* Preview do PDF Nativo */
-.pdf-preview-pane {
+/* Visualização de Arquivo Original e Tela Cheia */
+.ecg-viewer-container.ecg-viewer-fullscreen {
+  position: fixed;
+  inset: 0;
+  z-index: 9999;
+  border-radius: 0;
+  width: 100vw;
+  height: 100vh;
+  box-shadow: none;
+}
+
+.pdf-full-viewer-pane {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  min-height: 560px;
+  background-color: #0f172a;
+  overflow: hidden;
+  position: relative;
+}
+
+.pdf-iframe-wrapper {
+  flex: 1;
+  width: 100%;
+  height: 100%;
+  min-height: 560px;
+  background-color: #1e293b;
+  display: flex;
+}
+
+.pdf-native-iframe {
+  width: 100%;
+  height: 100%;
+  min-height: 560px;
+  border: none;
+  background-color: #ffffff;
+}
+
+.image-viewer-container {
+  flex: 1;
+  display: flex;
+  flex-direction: column;
+  height: 100%;
+  min-height: 560px;
+  background-color: #0f172a;
+}
+
+.image-scroll-surface {
+  flex: 1;
+  overflow: auto;
+  display: flex;
+  align-items: center;
+  justify-content: center;
   padding: 1.5rem;
-  background-color: #f1f5f9;
-  min-height: 520px;
+}
+
+.file-loading-state {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 1rem;
+  min-height: 480px;
+  color: #94a3b8;
+  font-size: 0.9rem;
+}
+
+/* Folha Oficial A4 de Traçado em Papel Milimetrado (quando não há arquivo binário) */
+.ecg-official-sheet-wrapper {
+  flex: 1;
+  overflow: auto;
+  padding: 1.5rem;
+  background-color: #334155;
   display: flex;
   justify-content: center;
 }
 
-.pdf-doc-sheet {
+.ecg-official-sheet {
   background-color: #ffffff;
-  border: 1px solid var(--border-light);
-  border-radius: var(--radius-sm);
-  padding: 2rem;
+  border: 1px solid #cbd5e1;
+  border-radius: 4px;
+  padding: 1.5rem 1.75rem;
   width: 100%;
-  max-width: 780px;
-  box-shadow: var(--shadow-md);
+  max-width: 1100px;
+  box-shadow: 0 10px 30px rgba(0, 0, 0, 0.35);
+  display: flex;
+  flex-direction: column;
+  gap: 0.85rem;
 }
 
-.pdf-sheet-header {
+.ecg-sheet-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: flex-start;
+  border-bottom: 2px solid #0f172a;
+  padding-bottom: 0.75rem;
+}
+
+.sheet-clinic-info h3 {
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: #0f172a;
+  margin: 0 0 0.2rem 0;
+}
+
+.sheet-clinic-info p {
+  margin: 0;
+  font-size: 0.8rem;
+  color: #64748b;
+}
+
+.sheet-clinic-info .sheet-tech-info {
+  font-size: 0.72rem;
+  color: #0284c7;
+  font-weight: 600;
+  margin-top: 0.25rem;
+}
+
+.sheet-badge-right {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 0.35rem;
+}
+
+.sheet-badge {
+  background-color: #0f172a;
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+  padding: 0.25rem 0.65rem;
+  border-radius: 4px;
+  letter-spacing: 0.5px;
+}
+
+.sheet-protocol {
+  font-family: var(--font-mono);
+  font-size: 0.75rem;
+  color: #475569;
+  font-weight: 600;
+}
+
+.ecg-sheet-patient-bar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 1rem;
+  background-color: #f8fafc;
+  border: 1px solid #e2e8f0;
+  border-radius: 4px;
+  padding: 0.65rem 1rem;
+  font-size: 0.8rem;
+}
+
+.sheet-patient-col {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  color: #334155;
+}
+
+.ecg-sheet-clinical-box {
+  background-color: #fffbeb;
+  border: 1px solid #fef3c7;
+  border-radius: 4px;
+  padding: 0.5rem 0.85rem;
+  font-size: 0.78rem;
+  color: #92400e;
+}
+
+.ecg-sheet-paper-grid {
+  background-color: #fff5f5;
+  border: 2px solid #f87171;
+  border-radius: 4px;
+  padding: 0.75rem;
+}
+
+.sheet-leads-container {
+  display: grid;
+  grid-template-columns: repeat(4, 1fr);
+  gap: 0.5rem;
+  margin-bottom: 0.5rem;
+}
+
+@media (max-width: 900px) {
+  .sheet-leads-container {
+    grid-template-columns: repeat(2, 1fr);
+  }
+}
+
+.sheet-lead-item {
+  background-color: #ffffff;
+  border: 1px solid #fca5a5;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.sheet-lead-canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.sheet-rhythm-strip {
+  background-color: #ffffff;
+  border: 1px solid #fca5a5;
+  border-radius: 3px;
+  overflow: hidden;
+}
+
+.sheet-rhythm-canvas {
+  width: 100%;
+  height: auto;
+  display: block;
+}
+
+.ecg-sheet-footer {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  border-bottom: 2px solid #0f172a;
-  padding-bottom: 0.75rem;
-  margin-bottom: 1rem;
+  border-top: 1px solid #e2e8f0;
+  padding-top: 0.5rem;
+  font-size: 0.72rem;
+  color: #64748b;
+  flex-wrap: wrap;
+  gap: 0.5rem;
 }
 
-.pdf-status-tag {
+.sheet-cal-params {
+  display: flex;
+  gap: 1.25rem;
+}
+
+.sheet-audit-hash code {
+  background-color: #f1f5f9;
+  padding: 0.1rem 0.35rem;
+  border-radius: 3px;
+  color: #0369a1;
   font-size: 0.7rem;
-  font-weight: 700;
-  background-color: #0f172a;
-  color: #ffffff;
-  padding: 0.2rem 0.6rem;
-  border-radius: 4px;
-}
-
-.pdf-patient-strip {
-  display: flex;
-  gap: 1.5rem;
-  font-size: 0.85rem;
-  padding: 0.5rem 0;
-  border-bottom: 1px solid #e2e8f0;
-  margin-bottom: 1rem;
-}
-
-.pdf-ecg-paper {
-  height: 320px;
-  background: repeating-linear-gradient(0deg, #fee2e2 0px, #fee2e2 1px, transparent 1px, transparent 15px),
-    repeating-linear-gradient(90deg, #fee2e2 0px, #fee2e2 1px, transparent 1px, transparent 15px);
-  border: 1px solid #fca5a5;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-}
-
-.pdf-grid-watermark {
-  text-align: center;
-  background-color: rgba(255, 255, 255, 0.9);
-  padding: 1.5rem 2rem;
-  border-radius: var(--radius-sm);
-  border: 1px solid #cbd5e1;
-  font-size: 0.85rem;
-  color: #475569;
 }
 
 /* --------------------------------------------------------------------------

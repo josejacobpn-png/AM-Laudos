@@ -14,6 +14,7 @@ import {
 import type { Clinic, Exam, Priority } from '../../types';
 import { calculateSha256, generateProtocolNumber } from '../../utils/cryptoSim';
 import { useAuth } from '../../context/AuthContext';
+import { fileToDataUrl, saveExamFile } from '../../utils/fileStorage';
 
 export interface SelectedFileItem {
   id: string;
@@ -203,13 +204,32 @@ export const ExamUploadModal: React.FC<ExamUploadModalProps> = ({
 
       setIsSubmitting(true);
 
-      const batchExams: Exam[] = selectedFiles.map((item, idx) => {
+      const batchExams: Exam[] = await Promise.all(selectedFiles.map(async (item, idx) => {
         let simulatedEcg: 'NORMAL' | 'ARRHYTHMIA' | 'ISCHEMIA' | 'LBBB' | 'BRADYCARDIA' = 'NORMAL';
         if (item.priority === 'EMERGENCIA') simulatedEcg = 'ISCHEMIA';
         else if (item.priority === 'URGENCIA') simulatedEcg = 'ARRHYTHMIA';
 
+        const examId = `ex-${Date.now()}-${idx}`;
+        const lowerName = item.name.toLowerCase();
+        let detectedType: 'PDF' | 'IMAGE' | 'XML_DICOM' = 'PDF';
+        if (lowerName.endsWith('.png') || lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg') || lowerName.endsWith('.webp') || lowerName.endsWith('.bmp')) {
+          detectedType = 'IMAGE';
+        } else if (lowerName.endsWith('.xml') || lowerName.endsWith('.dcm')) {
+          detectedType = 'XML_DICOM';
+        }
+
+        let fileDataUrl: string | undefined = undefined;
+        if (item.file) {
+          try {
+            fileDataUrl = await fileToDataUrl(item.file);
+            await saveExamFile(examId, item.name, detectedType, fileDataUrl, item.size);
+          } catch (e) {
+            console.warn('Erro ao processar arquivo anexado do lote:', e);
+          }
+        }
+
         return {
-          id: `ex-${Date.now()}-${idx}`,
+          id: examId,
           protocolNumber: generateProtocolNumber(),
           clinicId: clinic.id,
           clinicName: clinic.name,
@@ -220,8 +240,9 @@ export const ExamUploadModal: React.FC<ExamUploadModalProps> = ({
           remainingMinutes: slaMap[item.priority],
           fileName: item.name,
           fileSize: item.size,
-          fileType: item.name.toLowerCase().endsWith('.xml') ? 'XML_DICOM' : 'PDF',
+          fileType: detectedType,
           simulatedEcgType: simulatedEcg,
+          fileDataUrl,
           patient: {
             id: `pat-${Date.now()}-${idx}`,
             name: item.patientName.trim(),
@@ -233,7 +254,7 @@ export const ExamUploadModal: React.FC<ExamUploadModalProps> = ({
             medications: medications || 'Nenhum informado'
           }
         };
-      });
+      }));
 
       setTimeout(() => {
         onExamCreated(batchExams);
@@ -266,10 +287,29 @@ export const ExamUploadModal: React.FC<ExamUploadModalProps> = ({
 
     const singleFileName = selectedFiles.length === 1 ? selectedFiles[0].name : 'ecg_digital_padrao.pdf';
     const singleFileSize = selectedFiles.length === 1 ? selectedFiles[0].size : '1.1 MB';
-    const singleFileType = singleFileName.toLowerCase().endsWith('.xml') ? 'XML_DICOM' : 'PDF';
+    const lowerSingle = singleFileName.toLowerCase();
+
+    let singleFileType: 'PDF' | 'IMAGE' | 'XML_DICOM' = 'PDF';
+    if (lowerSingle.endsWith('.png') || lowerSingle.endsWith('.jpg') || lowerSingle.endsWith('.jpeg') || lowerSingle.endsWith('.webp') || lowerSingle.endsWith('.bmp')) {
+      singleFileType = 'IMAGE';
+    } else if (lowerSingle.endsWith('.xml') || lowerSingle.endsWith('.dcm')) {
+      singleFileType = 'XML_DICOM';
+    }
+
+    const examId = `ex-${Date.now()}`;
+    let fileDataUrl: string | undefined = undefined;
+
+    if (selectedFiles[0]?.file) {
+      try {
+        fileDataUrl = await fileToDataUrl(selectedFiles[0].file);
+        await saveExamFile(examId, singleFileName, singleFileType, fileDataUrl, singleFileSize);
+      } catch (e) {
+        console.warn('Erro ao processar arquivo anexado:', e);
+      }
+    }
 
     const newExam: Exam = {
-      id: `ex-${Date.now()}`,
+      id: examId,
       protocolNumber: generateProtocolNumber(),
       clinicId: clinic.id,
       clinicName: clinic.name,
@@ -282,6 +322,7 @@ export const ExamUploadModal: React.FC<ExamUploadModalProps> = ({
       fileSize: singleFileSize,
       fileType: singleFileType,
       simulatedEcgType: simulatedEcg,
+      fileDataUrl,
       patient: {
         id: `pat-${Date.now()}`,
         name: finalPatientName,

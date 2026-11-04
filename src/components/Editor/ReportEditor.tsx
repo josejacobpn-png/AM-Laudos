@@ -6,7 +6,8 @@ import {
   Save, 
   CheckCircle, 
   Activity, 
-  Stethoscope
+  Stethoscope,
+  Columns
 } from 'lucide-react';
 import type { Exam, Report, DigitalSignature } from '../../types';
 import { MEDICAL_TEMPLATES } from '../../data/templates';
@@ -54,6 +55,7 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
 
   const [isSignModalOpen, setIsSignModalOpen] = useState(false);
   const [draftSavedToast, setDraftSavedToast] = useState(false);
+  const [isExamExpanded, setIsExamExpanded] = useState<boolean>(false);
 
   // Carregar máscara ao selecionar
   const handleApplyTemplate = (tplId: string) => {
@@ -150,6 +152,16 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
             <span>{doctorName} (CRM {doctorCrm}-{doctorUf})</span>
           </div>
 
+          <button 
+            className={`btn-save-draft ${isExamExpanded ? 'active' : ''}`}
+            onClick={() => setIsExamExpanded(!isExamExpanded)}
+            title={isExamExpanded ? 'Voltar para divisão padrão (50/50)' : 'Expandir arquivo do exame para visualização ampla'}
+            style={{ display: 'inline-flex', alignItems: 'center', gap: '0.4rem' }}
+          >
+            <Columns size={16} />
+            <span>{isExamExpanded ? 'Divisão Normal' : 'Expandir Exame'}</span>
+          </button>
+
           <button className="btn-save-draft" onClick={handleSaveDraft}>
             <Save size={16} />
             <span>Salvar Rascunho</span>
@@ -190,7 +202,7 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
       </div>
 
       {/* Layout Split-Screen: Esquerda (ECG Viewer) | Direita (Editor de Laudo) */}
-      <div className="editor-split-container">
+      <div className={`editor-split-container ${isExamExpanded ? 'layout-expanded' : ''}`}>
         {/* Painel Esquerdo: Visualizador de ECG */}
         <div className="split-left-panel">
           <EcgViewer exam={exam} />

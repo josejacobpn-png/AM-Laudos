@@ -89,10 +89,12 @@ export interface Exam {
   remainingMinutes?: number;
   fileName: string;
   fileSize: string;
-  fileType: 'PDF' | 'XML_DICOM' | 'RAW_ECG';
+  fileType: 'PDF' | 'XML_DICOM' | 'RAW_ECG' | 'IMAGE';
   simulatedEcgType?: 'NORMAL' | 'ARRHYTHMIA' | 'ISCHEMIA' | 'LBBB' | 'BRADYCARDIA';
   report?: Report;
   lockedByDoctor?: string;
+  fileUrl?: string;
+  fileDataUrl?: string;
 }
 
 export interface ReportTemplate {
