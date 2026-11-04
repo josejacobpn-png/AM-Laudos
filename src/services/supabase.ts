@@ -12,3 +12,18 @@ export const isSupabaseConfigured = Boolean(
 export const supabase = isSupabaseConfigured
   ? createClient(supabaseUrl, supabaseAnonKey)
   : null;
+
+/**
+ * Cria um cliente isolado para operações de autenticação administrativas
+ * (ex: cadastro de novos usuários/médicos/clínicas pelo Admin),
+ * garantindo que a sessão ativa do usuário atual no navegador não seja sobrescrita.
+ */
+export const createIsolatedAuthClient = () => {
+  return createClient(supabaseUrl, supabaseAnonKey, {
+    auth: {
+      persistSession: false,
+      autoRefreshToken: false,
+      detectSessionInUrl: false
+    }
+  });
+};

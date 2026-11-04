@@ -15,7 +15,7 @@ import {
 import type { Clinic, Exam, UserProfile } from '../../types';
 import { DEMO_USERS } from '../../data/mockUsers';
 import { formatDateTimeBR } from '../../utils/cryptoSim';
-import { supabase, isSupabaseConfigured } from '../../services/supabase';
+import { supabase, isSupabaseConfigured, createIsolatedAuthClient } from '../../services/supabase';
 
 export const BRAZILIAN_UFS = [
   { sigla: 'AC', nome: 'Acre (AC)' },
@@ -204,8 +204,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           clinicId = clinicData.id;
         }
 
-        // 2. Criar usuário no Supabase Auth para a clínica
-        const { data: authData, error: authErr } = await supabase.auth.signUp({
+        // 2. Criar usuário no Supabase Auth para a clínica usando cliente isolado (não desloga o admin)
+        const authClient = createIsolatedAuthClient();
+        const { data: authData, error: authErr } = await authClient.auth.signUp({
           email: cleanEmail,
           password: newSenha,
           options: {
@@ -250,6 +251,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     onAddClinic(created);
     setIsSubmittingClinic(false);
     setIsNewClinicModalOpen(false);
+    setClinicFormError('');
     setNewNome('');
     setNewCnes('');
     setNewCidade('');
@@ -261,8 +263,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const handleCreateDoctor = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newDocNome || !newDocCrm || !newDocEmail) return;
 
+    const trimmedName = newDocNome.trim();
+    const cleanEmail = newDocEmail.trim().toLowerCase();
+    const cleanCrm = newDocCrm.trim();
+
+    if (!trimmedName) {
+      setDoctorFormError('Por favor, informe o nome completo do médico(a).');
+      return;
+    }
+    if (!cleanEmail) {
+      setDoctorFormError('Por favor, informe o e-mail de acesso do médico.');
+      return;
+    }
+    if (!cleanCrm) {
+      setDoctorFormError('Por favor, informe o número do CRM.');
+      return;
+    }
     if (!newDocSenha || newDocSenha.length < 6) {
       setDoctorFormError('A senha de acesso do médico deve ter no mínimo 6 caracteres.');
       return;
@@ -271,25 +288,24 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setDoctorFormError('');
     setIsSubmittingDoctor(true);
 
-    const trimmedName = newDocNome.trim();
     const formattedName = trimmedName.startsWith('Dr.') || trimmedName.startsWith('Dra.')
       ? trimmedName
       : `Dr(a). ${trimmedName}`;
-    const cleanEmail = newDocEmail.trim().toLowerCase();
 
     let createdId = `usr-medico-${Date.now()}`;
 
-    // Sincronizar criação no Supabase Auth se estiver ativo
+    // Sincronizar criação no Supabase Auth usando cliente isolado (não encerra nem sobrescreve a sessão do Admin)
     if (isSupabaseConfigured && supabase) {
       try {
-        const { data: authData, error: authErr } = await supabase.auth.signUp({
+        const authClient = createIsolatedAuthClient();
+        const { data: authData, error: authErr } = await authClient.auth.signUp({
           email: cleanEmail,
           password: newDocSenha,
           options: {
             data: {
               nome_completo: formattedName,
               tipo: 'MEDICO_LAUDISTA',
-              crm: newDocCrm.trim(),
+              crm: cleanCrm,
               uf_crm: newDocUf,
               especialidade: newDocEspecialidade
             }
@@ -301,13 +317,22 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           setIsSubmittingDoctor(false);
           setDoctorFormError(`Falha ao registrar médico no Supabase: ${authErr.message}`);
           return;
-        } else if (authData.user) {
+        }
+
+        // Caso o usuário já exista, o Supabase Auth pode retornar identities vazio
+        if (authData?.user?.identities && authData.user.identities.length === 0) {
+          setIsSubmittingDoctor(false);
+          setDoctorFormError('Este e-mail já está cadastrado no sistema. Por favor, utilize outro e-mail.');
+          return;
+        }
+
+        if (authData?.user) {
           createdId = authData.user.id;
           const { error: perfilErr } = await supabase.from('perfis').upsert({
             id: authData.user.id,
             nome_completo: formattedName,
             tipo: 'MEDICO_LAUDISTA',
-            crm: newDocCrm.trim(),
+            crm: cleanCrm,
             uf_crm: newDocUf,
             especialidade: newDocEspecialidade,
             telefone: newDocTelefone.trim() || undefined
@@ -315,9 +340,23 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
           if (perfilErr) {
             console.warn('Erro ao criar perfil de médico no Supabase:', perfilErr.message);
-            setIsSubmittingDoctor(false);
-            setDoctorFormError(`Erro ao salvar perfil do médico: ${perfilErr.message}`);
-            return;
+            // Tenta fallback com authClient se houver bloqueio por RLS
+            const { error: retryErr } = await authClient.from('perfis').upsert({
+              id: authData.user.id,
+              nome_completo: formattedName,
+              tipo: 'MEDICO_LAUDISTA',
+              crm: cleanCrm,
+              uf_crm: newDocUf,
+              especialidade: newDocEspecialidade,
+              telefone: newDocTelefone.trim() || undefined
+            });
+
+            if (retryErr) {
+              console.warn('Erro persistente no perfil:', retryErr.message);
+              setIsSubmittingDoctor(false);
+              setDoctorFormError(`Médico cadastrado na autenticação, mas erro ao salvar perfil: ${perfilErr.message}`);
+              return;
+            }
           }
         }
       } catch (err: any) {
@@ -333,7 +372,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       name: formattedName,
       email: cleanEmail,
       role: 'MEDICO_LAUDISTA',
-      crm: newDocCrm.trim(),
+      crm: cleanCrm,
       uf: newDocUf,
       specialty: newDocEspecialidade,
       phone: newDocTelefone.trim() || undefined
@@ -347,6 +386,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
     setIsSubmittingDoctor(false);
     setIsNewDoctorModalOpen(false);
+    setDoctorFormError('');
     setNewDocNome('');
     setNewDocEmail('');
     setNewDocSenha('');
@@ -682,7 +722,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
             <button
               className="btn-add-primary"
-              onClick={() => setIsNewClinicModalOpen(true)}
+              onClick={() => {
+                setClinicFormError('');
+                setIsNewClinicModalOpen(true);
+              }}
             >
               <Plus size={17} />
               <span>Cadastrar Nova Clínica</span>
@@ -784,7 +827,10 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
             <button
               type="button"
               className="btn-add-primary"
-              onClick={() => setIsNewDoctorModalOpen(true)}
+              onClick={() => {
+                setDoctorFormError('');
+                setIsNewDoctorModalOpen(true);
+              }}
             >
               <Plus size={17} />
               <span>Cadastrar Novo Médico Laudista</span>
@@ -1094,6 +1140,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
 
+              {clinicFormError && (
+                <div className="login-error-banner animate-fade-in" style={{ marginTop: '0.75rem', marginBottom: '0.25rem' }}>
+                  {clinicFormError}
+                </div>
+              )}
+
               <div className="modal-footer">
                 <button
                   type="button"
@@ -1225,6 +1277,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
 
+              {doctorFormError && (
+                <div className="login-error-banner animate-fade-in" style={{ marginTop: '0.75rem', marginBottom: '0.25rem' }}>
+                  {doctorFormError}
+                </div>
+              )}
+
               <div className="modal-footer">
                 <button
                   type="button"
@@ -1347,6 +1405,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </div>
               </div>
 
+              {editClinicError && (
+                <div className="login-error-banner animate-fade-in" style={{ marginTop: '0.75rem', marginBottom: '0.25rem' }}>
+                  {editClinicError}
+                </div>
+              )}
+
               <div className="modal-footer">
                 <button
                   type="button"
@@ -1459,6 +1523,12 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                   <option value="Ecocardiografia e Imagem Cardiovascular">Ecocardiografia e Imagem Cardiovascular</option>
                 </select>
               </div>
+
+              {editDoctorError && (
+                <div className="login-error-banner animate-fade-in" style={{ marginTop: '0.75rem', marginBottom: '0.25rem' }}>
+                  {editDoctorError}
+                </div>
+              )}
 
               <div className="modal-footer">
                 <button
