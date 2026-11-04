@@ -48,7 +48,7 @@ export function generateLaudoPdf(exam: Exam, report: Report): jsPDF {
 
   doc.setFont('helvetica', 'normal');
   doc.text(`CPF: ${exam.patient.cpf}`, margin + 105, y + 11);
-  doc.text(`Idade / Sexo: ${exam.patient.age} anos / ${exam.patient.gender === 'M' ? 'Masculino' : 'Feminino'}`, margin + 145, y + 11);
+  doc.text(`Idade / Sexo: ${exam.patient.age ? `${exam.patient.age} anos` : 'Não informada'} / ${exam.patient.gender === 'M' ? 'Masculino' : 'Feminino'}`, margin + 145, y + 11);
 
   doc.text(`Sintomas / Indicação:`, margin + 4, y + 17);
   doc.setFont('helvetica', 'bold');

@@ -228,7 +228,7 @@ export const ClinicDashboard: React.FC<ClinicDashboardProps> = ({
                       <td>
                         <div className="patient-cell">
                           <strong>{exam.patient.name}</strong>
-                          <small>{exam.patient.age} anos • CPF: {exam.patient.cpf}</small>
+                          <small>{exam.patient.age ? `${exam.patient.age} anos` : 'Idade não informada'} • CPF: {exam.patient.cpf}</small>
                         </div>
                       </td>
 

@@ -24,7 +24,7 @@ export interface Patient {
   id: string;
   name: string;
   cpf: string;
-  age: number;
+  age?: number;
   gender: 'M' | 'F';
   bloodPressure?: string;
   symptoms: string;

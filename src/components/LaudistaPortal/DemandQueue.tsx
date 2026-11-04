@@ -237,7 +237,7 @@ export const DemandQueue: React.FC<DemandQueueProps> = ({
                     <div className="patient-main-info">
                       <h3 className="patient-name">{exam.patient.name}</h3>
                       <div className="patient-details-row">
-                        <span><strong>Idade:</strong> {exam.patient.age} anos</span>
+                        <span><strong>Idade:</strong> {exam.patient.age ? `${exam.patient.age} anos` : 'Não informada'}</span>
                         <span>•</span>
                         <span><strong>Sexo:</strong> {exam.patient.gender === 'M' ? 'Masculino' : 'Feminino'}</span>
                         <span>•</span>

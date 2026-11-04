@@ -79,9 +79,9 @@ export const ExamUploadModal: React.FC<ExamUploadModalProps> = ({
   // Campos para quando for 1 exame (ou valores padrão)
   const [patientName, setPatientName] = useState('');
   const [patientCpf, setPatientCpf] = useState('');
-  const [patientAge, setPatientAge] = useState<number | ''>(55);
+  const [patientAge, setPatientAge] = useState<number | ''>('');
   const [patientGender, setPatientGender] = useState<'M' | 'F'>('M');
-  const [bloodPressure, setBloodPressure] = useState('130/80');
+  const [bloodPressure, setBloodPressure] = useState('');
   const [symptoms, setSymptoms] = useState('');
   const [medications, setMedications] = useState('');
   const [priority, setPriority] = useState<Priority>('URGENCIA');
@@ -133,6 +133,8 @@ export const ExamUploadModal: React.FC<ExamUploadModalProps> = ({
       setSelectedFiles([]);
       setPatientName('');
       setPatientCpf('');
+      setPatientAge('');
+      setBloodPressure('');
       setSymptoms('');
       setMedications('');
       setIsSubmitting(false);
@@ -284,9 +286,9 @@ export const ExamUploadModal: React.FC<ExamUploadModalProps> = ({
         id: `pat-${Date.now()}`,
         name: finalPatientName,
         cpf: patientCpf || '000.***.***-00',
-        age: Number(patientAge) || 45,
+        age: patientAge !== '' ? Number(patientAge) : undefined,
         gender: patientGender,
-        bloodPressure: bloodPressure || '120/80 mmHg',
+        bloodPressure: bloodPressure.trim() || undefined,
         symptoms: symptoms || 'Exame de rotina',
         medications: medications || 'Nenhum informado'
       }
@@ -552,6 +554,7 @@ export const ExamUploadModal: React.FC<ExamUploadModalProps> = ({
                     type="number"
                     min="0"
                     max="120"
+                    placeholder="Ex: 45"
                     value={patientAge}
                     onChange={(e) => setPatientAge(e.target.value ? Number(e.target.value) : '')}
                     className="form-control"

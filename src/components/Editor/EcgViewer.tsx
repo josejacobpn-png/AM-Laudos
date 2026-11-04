@@ -279,7 +279,7 @@ export const EcgViewer: React.FC<EcgViewerProps> = ({ exam }) => {
 
             <div className="pdf-patient-strip">
               <span><strong>Paciente:</strong> {exam.patient.name}</span>
-              <span><strong>Idade:</strong> {exam.patient.age} anos</span>
+              <span><strong>Idade:</strong> {exam.patient.age ? `${exam.patient.age} anos` : 'Não informada'}</span>
               <span><strong>Sexo:</strong> {exam.patient.gender}</span>
               <span><strong>Data/Hora:</strong> {formatDateTimeBR(exam.receivedAt)}</span>
             </div>

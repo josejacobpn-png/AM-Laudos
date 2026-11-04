@@ -172,7 +172,7 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
       <div className="patient-context-banner">
         <div className="patient-id-block">
           <strong>{exam.patient.name}</strong>
-          <span>{exam.patient.age} anos • Sexo: {exam.patient.gender === 'M' ? 'Masc' : 'Fem'} • CPF: {exam.patient.cpf}</span>
+          <span>{exam.patient.age ? `${exam.patient.age} anos` : 'Idade não informada'} • Sexo: {exam.patient.gender === 'M' ? 'Masc' : 'Fem'} • CPF: {exam.patient.cpf}</span>
           <span>PA: {exam.patient.bloodPressure || 'N/A'}</span>
         </div>
 

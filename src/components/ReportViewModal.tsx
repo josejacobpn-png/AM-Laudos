@@ -116,7 +116,7 @@ export const ReportViewModal: React.FC<ReportViewModalProps> = ({
                 </div>
                 <div>
                   <span className="lbl">IDADE / SEXO:</span>
-                  <span className="val">{exam.patient.age} anos / {exam.patient.gender === 'M' ? 'Masculino' : 'Feminino'}</span>
+                  <span className="val">{exam.patient.age ? `${exam.patient.age} anos` : 'Não informada'} / {exam.patient.gender === 'M' ? 'Masculino' : 'Feminino'}</span>
                 </div>
                 <div>
                   <span className="lbl">PA:</span>
