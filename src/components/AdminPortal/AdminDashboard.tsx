@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   Building2, 
   Stethoscope, 
@@ -105,7 +105,71 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return DEMO_USERS.filter(u => u.role === 'MEDICO_LAUDISTA');
   });
 
-  const doctorsList = doctors || localDoctors;
+  // Buscar médicos atualizados direto do Supabase ao abrir a aba
+  useEffect(() => {
+    if (!isSupabaseConfigured || !supabase) return;
+    supabase
+      .from('perfis')
+      .select('*')
+      .then(({ data, error }) => {
+        if (!error && data && data.length > 0) {
+          const doctorRows = data.filter((p: any) => p.tipo === 'MEDICO_LAUDISTA' || Boolean(p.crm));
+          const savedDocs: UserProfile[] = (() => {
+            try {
+              return JSON.parse(localStorage.getItem('am_laudos_doctors_v2') || '[]');
+            } catch {
+              return [];
+            }
+          })();
+
+          const remoteDocs: UserProfile[] = doctorRows.map((p: any) => {
+            const matchedSaved = savedDocs.find(s => s.id === p.id || (s.crm && s.crm === p.crm));
+            return {
+              id: p.id,
+              name: p.nome_completo,
+              email: matchedSaved?.email || p.email || 'medico@amlaudos.com.br',
+              role: 'MEDICO_LAUDISTA' as const,
+              crm: p.crm || '',
+              uf: p.uf_crm || 'SP',
+              specialty: p.especialidade || 'Cardiologia Clínica e Eletrofisiologia',
+              phone: p.telefone || matchedSaved?.phone
+            };
+          });
+
+          if (remoteDocs.length > 0) {
+            setLocalDoctors(remoteDocs);
+          }
+        }
+      });
+  }, [activeTab]);
+
+  // Unificar médicos das props, do estado local e do localStorage sem duplicatas
+  const savedLocalStorageDoctors: UserProfile[] = (() => {
+    try {
+      return JSON.parse(localStorage.getItem('am_laudos_doctors_v2') || '[]');
+    } catch {
+      return [];
+    }
+  })();
+
+  const combinedDoctorsMap = new Map<string, UserProfile>();
+
+  localDoctors.forEach(d => {
+    const key = d.crm ? `crm-${d.crm}-${d.uf || ''}` : d.email ? `email-${d.email.toLowerCase()}` : d.id;
+    combinedDoctorsMap.set(key, d);
+  });
+
+  savedLocalStorageDoctors.forEach(d => {
+    const key = d.crm ? `crm-${d.crm}-${d.uf || ''}` : d.email ? `email-${d.email.toLowerCase()}` : d.id;
+    combinedDoctorsMap.set(key, d);
+  });
+
+  (doctors || []).forEach(d => {
+    const key = d.crm ? `crm-${d.crm}-${d.uf || ''}` : d.email ? `email-${d.email.toLowerCase()}` : d.id;
+    combinedDoctorsMap.set(key, d);
+  });
+
+  const doctorsList = Array.from(combinedDoctorsMap.values());
 
   // Estados para cadastro e busca de médicos
   const [isNewDoctorModalOpen, setIsNewDoctorModalOpen] = useState(false);

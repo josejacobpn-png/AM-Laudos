@@ -127,13 +127,14 @@ function MainAppContent() {
         }
       });
 
-    // Carregar médicos cadastrados do banco
+    // Carregar médicos cadastrados do banco (busca por tipo ou presença de CRM registrado)
     supabase
       .from('perfis')
       .select('*')
-      .eq('tipo', 'MEDICO_LAUDISTA')
       .then(({ data, error }) => {
         if (!error && data && data.length > 0) {
+          const doctorRows = data.filter((p: any) => p.tipo === 'MEDICO_LAUDISTA' || Boolean(p.crm));
+
           const savedDocs: UserProfile[] = (() => {
             try {
               return JSON.parse(localStorage.getItem('am_laudos_doctors_v2') || '[]');
@@ -142,23 +143,34 @@ function MainAppContent() {
             }
           })();
 
-          const remoteDocs: UserProfile[] = data.map((p: any) => {
+          const remoteDocs: UserProfile[] = doctorRows.map((p: any) => {
             const matchedSaved = savedDocs.find(s => s.id === p.id || (s.crm && s.crm === p.crm));
             return {
               id: p.id,
               name: p.nome_completo,
               email: matchedSaved?.email || p.email || 'medico@amlaudos.com.br',
-              role: 'MEDICO_LAUDISTA',
+              role: 'MEDICO_LAUDISTA' as const,
               crm: p.crm || '',
               uf: p.uf_crm || 'SP',
-              specialty: p.especialidade || 'Cardiologia Clínica',
+              specialty: p.especialidade || 'Cardiologia Clínica e Eletrofisiologia',
               phone: p.telefone || matchedSaved?.phone
             };
           });
-          setDoctors(remoteDocs);
+
+          // Mesclar com médicos do localStorage para garantir que nenhum profissional cadastrado se perca
+          const merged = [...remoteDocs];
+          savedDocs.forEach(s => {
+            if (!merged.some(m => m.id === s.id || (m.crm && m.crm === s.crm) || (m.email && m.email.toLowerCase() === s.email?.toLowerCase()))) {
+              merged.push(s);
+            }
+          });
+
+          if (merged.length > 0) {
+            setDoctors(merged);
+          }
         }
       });
-  }, []);
+  }, [isAuthenticated]);
 
   // Ajustar visão inicial do Admin ao logar
   useEffect(() => {
