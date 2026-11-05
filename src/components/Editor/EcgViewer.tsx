@@ -13,12 +13,12 @@ import {
   ExternalLink,
   Download,
   RotateCw,
-  Contrast
+  Contrast,
+  UploadCloud
 } from 'lucide-react';
 import type { Exam } from '../../types';
 import { getLeadConfigs, generateLeadWaveform, drawEcgOnCanvas } from '../../utils/ecgGenerator';
-import { formatDateTimeBR } from '../../utils/cryptoSim';
-import { getExamFile } from '../../utils/fileStorage';
+import { getExamFile, dataUrlToBlobUrl, fileToDataUrl, saveExamFile } from '../../utils/fileStorage';
 
 interface EcgViewerProps {
   exam: Exam;
@@ -37,6 +37,7 @@ export const EcgViewer: React.FC<EcgViewerProps> = ({ exam }) => {
 
   // Estado do arquivo anexado (Data URL / Blob URL)
   const [fileContent, setFileContent] = useState<string | null>(exam.fileDataUrl || exam.fileUrl || null);
+  const [blobUrl, setBlobUrl] = useState<string | null>(null);
   const [isLoadingFile, setIsLoadingFile] = useState<boolean>(false);
 
   // Controles de Imagem (quando o anexo for foto/scanner de ECG)
@@ -46,6 +47,9 @@ export const EcgViewer: React.FC<EcgViewerProps> = ({ exam }) => {
 
   // Modo Tela Cheia do Visualizador para análise minuciosa
   const [isFullscreen, setIsFullscreen] = useState<boolean>(false);
+
+  // Ref para seleção manual de arquivo direto no visualizador
+  const fileInputRef = useRef<HTMLInputElement>(null);
 
   const leadOrder = ['DI', 'DII', 'DIII', 'aVR', 'aVL', 'aVF', 'V1', 'V2', 'V3', 'V4', 'V5', 'V6'];
   const leadConfigs = getLeadConfigs(exam.simulatedEcgType || 'NORMAL');
@@ -61,7 +65,7 @@ export const EcgViewer: React.FC<EcgViewerProps> = ({ exam }) => {
     }
 
     setIsLoadingFile(true);
-    getExamFile(exam.id)
+    getExamFile(exam.id, exam.fileName)
       .then(stored => {
         if (stored?.dataUrl) {
           setFileContent(stored.dataUrl);
@@ -70,7 +74,33 @@ export const EcgViewer: React.FC<EcgViewerProps> = ({ exam }) => {
       .finally(() => {
         setIsLoadingFile(false);
       });
-  }, [exam.id, exam.fileDataUrl, exam.fileUrl]);
+  }, [exam.id, exam.fileName, exam.fileDataUrl, exam.fileUrl]);
+
+  // Converter dataUrl em blobUrl para compatibilidade 100% nativa com o Chrome/Edge PDF plugin
+  useEffect(() => {
+    if (!fileContent) {
+      setBlobUrl(null);
+      return;
+    }
+
+    if (fileContent.startsWith('blob:') || fileContent.startsWith('http')) {
+      setBlobUrl(fileContent);
+      return;
+    }
+
+    try {
+      const converted = dataUrlToBlobUrl(fileContent);
+      setBlobUrl(converted);
+      return () => {
+        if (converted.startsWith('blob:')) {
+          URL.revokeObjectURL(converted);
+        }
+      };
+    } catch (e) {
+      console.warn('Erro ao gerar blobUrl do arquivo:', e);
+      setBlobUrl(fileContent);
+    }
+  }, [fileContent]);
 
   // Tecla ESC para sair de tela cheia
   useEffect(() => {
@@ -82,6 +112,20 @@ export const EcgViewer: React.FC<EcgViewerProps> = ({ exam }) => {
     window.addEventListener('keydown', handleKeyDown);
     return () => window.removeEventListener('keydown', handleKeyDown);
   }, [isFullscreen]);
+
+  // Handler de carregamento manual de arquivo pelo médico
+  const handleManualUpload = async (e: React.ChangeEvent<HTMLInputElement>) => {
+    if (e.target.files && e.target.files[0]) {
+      const file = e.target.files[0];
+      try {
+        const dataUrl = await fileToDataUrl(file);
+        setFileContent(dataUrl);
+        await saveExamFile(exam.id, file.name, file.type, dataUrl, `${(file.size / (1024 * 1024)).toFixed(2)} MB`);
+      } catch (err) {
+        console.warn('Erro ao carregar arquivo de exame:', err);
+      }
+    }
+  };
 
   // Renderizar Traçado Interativo 12 Derivações
   useEffect(() => {
@@ -148,28 +192,25 @@ export const EcgViewer: React.FC<EcgViewerProps> = ({ exam }) => {
     exam.fileName.match(/\.(png|jpe?g|webp|bmp|gif)$/i) || 
     (fileContent && fileContent.startsWith('data:image/'));
 
-  const isPdfFile = 
-    exam.fileType === 'PDF' || 
-    exam.fileName.match(/\.pdf$/i) || 
-    (fileContent && fileContent.startsWith('data:application/pdf'));
-
-  // Handler de abertura em nova aba
+  // Handler de abertura em nova aba (utilizando blobUrl seguro)
   const handleOpenInNewTab = () => {
-    if (fileContent) {
-      const win = window.open();
-      if (win) {
-        if (isPdfFile) {
-          win.document.write(`<iframe src="${fileContent}" frameborder="0" style="border:0; top:0px; left:0px; bottom:0px; right:0px; width:100%; height:100%;" allowfullscreen></iframe>`);
-        } else {
-          win.document.write(`<img src="${fileContent}" style="max-width:100%; margin:auto; display:block;" />`);
-        }
-        win.document.title = `Exame - ${exam.fileName}`;
-      }
+    const targetUrl = blobUrl || fileContent;
+    if (targetUrl) {
+      window.open(targetUrl, '_blank');
     }
   };
 
   return (
     <div className={`ecg-viewer-container ${theme === 'dark' ? 'theme-dark' : 'theme-classic'} ${isFullscreen ? 'ecg-viewer-fullscreen' : ''}`}>
+      {/* Input de arquivo invisível para anexar/trocar arquivo manualmente se desejado */}
+      <input
+        type="file"
+        ref={fileInputRef}
+        style={{ display: 'none' }}
+        accept=".pdf,.png,.jpg,.jpeg,.webp,.bmp,.xml,.dcm"
+        onChange={handleManualUpload}
+      />
+
       {/* Barra de Controles do Eletrocardiógrafo */}
       <div className="viewer-toolbar">
         <div className="toolbar-left">
@@ -260,7 +301,7 @@ export const EcgViewer: React.FC<EcgViewerProps> = ({ exam }) => {
           ) : (
             /* Ferramentas do Arquivo Original */
             <>
-              {isImageFile && (
+              {isImageFile && fileContent && (
                 <>
                   <div className="tool-btn-group">
                     <button
@@ -299,18 +340,27 @@ export const EcgViewer: React.FC<EcgViewerProps> = ({ exam }) => {
                 </>
               )}
 
-              {fileContent && (
+              {/* Botão de carregar arquivo caso o médico queira anexar outro */}
+              <button
+                className="tool-btn"
+                onClick={() => fileInputRef.current?.click()}
+                title="Carregar ou substituir arquivo de ECG (PDF / Imagem)"
+              >
+                <UploadCloud size={16} />
+              </button>
+
+              {blobUrl && (
                 <>
                   <button
                     className="tool-btn"
                     onClick={handleOpenInNewTab}
-                    title="Abrir arquivo original em uma nova aba"
+                    title="Abrir arquivo original em uma nova aba do navegador"
                   >
                     <ExternalLink size={16} />
                   </button>
 
                   <a
-                    href={fileContent}
+                    href={blobUrl}
                     download={exam.fileName}
                     className="tool-btn"
                     title="Baixar arquivo original enviado pela clínica"
@@ -326,7 +376,7 @@ export const EcgViewer: React.FC<EcgViewerProps> = ({ exam }) => {
           <button
             className={`tool-btn ${isFullscreen ? 'active' : ''}`}
             onClick={() => setIsFullscreen(!isFullscreen)}
-            title={isFullscreen ? 'Restaurar tela dividida (Esc)' : 'Expandir arquivo em Tela Cheia para análise minuciosa'}
+            title={isFullscreen ? 'Restaurar tela dividida (Esc)' : 'Expandir visualizador em Tela Cheia para análise minuciosa'}
           >
             {isFullscreen ? <Minimize2 size={16} /> : <Maximize2 size={16} />}
           </button>
@@ -355,7 +405,7 @@ export const EcgViewer: React.FC<EcgViewerProps> = ({ exam }) => {
         </div>
       )}
 
-      {/* Conteúdo: Traçado Sintético Calibrado */}
+      {/* Conteúdo: Traçado Sintético Calibrado com Régua */}
       {activeTab === 'tracado' && (
         <div
           className="canvas-scroll-viewport"
@@ -434,6 +484,36 @@ export const EcgViewer: React.FC<EcgViewerProps> = ({ exam }) => {
             isImageFile ? (
               /* Visualização de Imagem em Alta Resolução */
               <div className="image-viewer-container">
+                <div className="pdf-doc-action-bar">
+                  <div className="pdf-doc-meta">
+                    <FileText size={16} className="text-primary" />
+                    <span><strong>{exam.fileName}</strong> ({exam.fileSize})</span>
+                    <span className="pdf-verified-badge">Imagem Anexa</span>
+                  </div>
+                  <div className="pdf-doc-buttons">
+                    <button
+                      type="button"
+                      className="btn-doc-action"
+                      onClick={handleOpenInNewTab}
+                      title="Abrir em Nova Aba"
+                    >
+                      <ExternalLink size={15} />
+                      <span>Nova Aba</span>
+                    </button>
+                    {blobUrl && (
+                      <a
+                        href={blobUrl}
+                        download={exam.fileName}
+                        className="btn-doc-action"
+                        title="Baixar Arquivo"
+                      >
+                        <Download size={15} />
+                        <span>Baixar</span>
+                      </a>
+                    )}
+                  </div>
+                </div>
+
                 <div 
                   className="image-scroll-surface"
                   style={{
@@ -444,7 +524,7 @@ export const EcgViewer: React.FC<EcgViewerProps> = ({ exam }) => {
                   }}
                 >
                   <img
-                    src={fileContent}
+                    src={blobUrl || fileContent}
                     alt={`Arquivo de Exame - ${exam.fileName}`}
                     style={{
                       transform: `scale(${imgZoom}) rotate(${imgRotation}deg)`,
@@ -462,120 +542,86 @@ export const EcgViewer: React.FC<EcgViewerProps> = ({ exam }) => {
             ) : (
               /* Visualização de PDF Nativo em Tela Inteira */
               <div className="pdf-iframe-wrapper">
-                <iframe
-                  src={`${fileContent}#toolbar=1&navpanes=1&scrollbar=1&view=FitH`}
-                  title={`Documento do Exame - ${exam.fileName}`}
-                  className="pdf-native-iframe"
-                />
+                <div className="pdf-doc-action-bar">
+                  <div className="pdf-doc-meta">
+                    <FileText size={16} className="text-primary" />
+                    <span><strong>{exam.fileName}</strong> ({exam.fileSize})</span>
+                    <span className="pdf-verified-badge">PDF Nativo</span>
+                  </div>
+                  <div className="pdf-doc-buttons">
+                    <button
+                      type="button"
+                      className="btn-doc-action"
+                      onClick={handleOpenInNewTab}
+                      title="Abrir PDF em tela cheia numa nova aba do navegador"
+                    >
+                      <ExternalLink size={15} />
+                      <span>Abrir em Nova Aba</span>
+                    </button>
+                    {blobUrl && (
+                      <a
+                        href={blobUrl}
+                        download={exam.fileName}
+                        className="btn-doc-action"
+                        title="Baixar Arquivo PDF"
+                      >
+                        <Download size={15} />
+                        <span>Baixar</span>
+                      </a>
+                    )}
+                    <button
+                      type="button"
+                      className="btn-doc-action"
+                      onClick={() => fileInputRef.current?.click()}
+                      title="Substituir ou enviar outro arquivo de ECG"
+                    >
+                      <UploadCloud size={15} />
+                      <span>Substituir</span>
+                    </button>
+                  </div>
+                </div>
+
+                {blobUrl ? (
+                  <iframe
+                    src={blobUrl}
+                    title={`Documento do Exame - ${exam.fileName}`}
+                    className="pdf-native-iframe"
+                  />
+                ) : (
+                  <div className="file-loading-state">
+                    <div className="spinner" />
+                    <p>Processando documento PDF...</p>
+                  </div>
+                )}
               </div>
             )
           ) : (
-            /* CASO 2: Exame Sem Arquivo Binário Físico (Ex: Registro Simulado) */
-            /* Renderiza a Folha Oficial A4 de Eletrocardiograma em Papel Milimetrado com Todas as 12 Derivações */
-            <div className="ecg-official-sheet-wrapper">
-              <div className="ecg-official-sheet">
-                {/* Cabeçalho Oficial do Exame */}
-                <div className="ecg-sheet-header">
-                  <div className="sheet-clinic-info">
-                    <h3>{exam.clinicName}</h3>
-                    <p>Serviço de Cardiologia Diagnóstica • CNES {exam.clinicId?.slice(0, 7) || '2849102'}</p>
-                    <p className="sheet-tech-info">
-                      Equipamento Digital de 12 Canais • Calibração NBR IEC 60601-2-25 • Filtros 0.05 - 150 Hz
-                    </p>
-                  </div>
+            /* CASO 2: Nenhum Arquivo Anexado Localizado */
+            <div className="pdf-empty-upload-box">
+              <FileText size={48} style={{ color: '#94a3b8', marginBottom: '0.85rem' }} />
+              <h4>Nenhum arquivo físico foi localizado para este exame</h4>
+              <p style={{ color: '#64748b', fontSize: '0.875rem', maxWidth: '480px', margin: '0.35rem auto 1.25rem auto' }}>
+                O exame <strong>{exam.fileName}</strong> foi registrado sem upload de arquivo binário direto ou está em modo demonstrativo. Você pode carregar o PDF ou foto do eletrocardiograma agora:
+              </p>
 
-                  <div className="sheet-badge-right">
-                    <span className="sheet-badge">ECG 12 DERIVAÇÕES DIGITAL</span>
-                    <span className="sheet-protocol">PROTOCOLO: {exam.protocolNumber}</span>
-                  </div>
-                </div>
+              <button
+                type="button"
+                className="btn-primary-action"
+                style={{ display: 'inline-flex', alignItems: 'center', gap: '0.5rem', margin: 'auto' }}
+                onClick={() => fileInputRef.current?.click()}
+              >
+                <UploadCloud size={18} />
+                <span>Carregar Arquivo PDF / Imagem de ECG</span>
+              </button>
 
-                {/* Faixa com Dados do Paciente */}
-                <div className="ecg-sheet-patient-bar">
-                  <div className="sheet-patient-col">
-                    <span><strong>PACIENTE:</strong> {exam.patient.name}</span>
-                    <span><strong>CPF:</strong> {exam.patient.cpf}</span>
-                  </div>
-                  <div className="sheet-patient-col">
-                    <span><strong>IDADE:</strong> {exam.patient.age ? `${exam.patient.age} anos` : 'Não informada'}</span>
-                    <span><strong>SEXO:</strong> {exam.patient.gender === 'M' ? 'Masculino' : 'Feminino'}</span>
-                  </div>
-                  <div className="sheet-patient-col">
-                    <span><strong>PRESSÃO ARTERIAL:</strong> {exam.patient.bloodPressure || '120/80 mmHg'}</span>
-                    <span><strong>DATA/HORA:</strong> {formatDateTimeBR(exam.receivedAt)}</span>
-                  </div>
-                </div>
-
-                {/* Informações Clínicas / Sintomas */}
-                <div className="ecg-sheet-clinical-box">
-                  <span><strong>INDICAÇÃO CLÍNICA / SINTOMAS:</strong> {exam.patient.symptoms}</span>
-                  {exam.patient.medications && (
-                    <span style={{ marginLeft: '1.5rem' }}><strong>MEDICAMENTOS:</strong> {exam.patient.medications}</span>
-                  )}
-                </div>
-
-                {/* Traçado Oficial Completo em Papel Milimetrado Rosa com 12 Derivações */}
-                <div className="ecg-sheet-paper-grid">
-                  <div className="sheet-leads-container">
-                    {leadOrder.map((leadKey) => {
-                      const config = leadConfigs[leadKey] || leadConfigs['DII'];
-                      const points = generateLeadWaveform(config, 2.5, 75, exam.simulatedEcgType || 'NORMAL');
-                      return (
-                        <div key={`sheet-${leadKey}`} className="sheet-lead-item">
-                          <canvas
-                            ref={el => {
-                              if (!el) return;
-                              const ctx = el.getContext('2d');
-                              if (!ctx) return;
-                              drawEcgOnCanvas(ctx, el.width, el.height, leadKey, points, {
-                                theme: 'classic',
-                                scale: 1.0,
-                                showGrid: true
-                              });
-                            }}
-                            width={340}
-                            height={110}
-                            className="sheet-lead-canvas"
-                          />
-                        </div>
-                      );
-                    })}
-                  </div>
-
-                  {/* DII Longo na base da folha */}
-                  <div className="sheet-rhythm-strip">
-                    <canvas
-                      ref={el => {
-                        if (!el) return;
-                        const ctx = el.getContext('2d');
-                        if (!ctx) return;
-                        const config = leadConfigs['DII'];
-                        const points = generateLeadWaveform(config, 9.0, 75, exam.simulatedEcgType || 'NORMAL');
-                        drawEcgOnCanvas(ctx, el.width, el.height, 'DII LONGO (RITMO DE BASE)', points, {
-                          theme: 'classic',
-                          scale: 1.0,
-                          showGrid: true
-                        });
-                      }}
-                      width={1380}
-                      height={120}
-                      className="sheet-rhythm-canvas"
-                    />
-                  </div>
-                </div>
-
-                {/* Rodapé de Parâmetros e Calibração */}
-                <div className="ecg-sheet-footer">
-                  <div className="sheet-cal-params">
-                    <span>Velocidade: <strong>25 mm/s</strong></span>
-                    <span>Sensibilidade: <strong>10 mm/mV</strong></span>
-                    <span>Frequência Cardíaca estimada: <strong>72 bpm</strong></span>
-                    <span>Arquivo de Origem: <strong>{exam.fileName}</strong> ({exam.fileSize})</span>
-                  </div>
-                  <div className="sheet-audit-hash">
-                    <span>Validação Digital SHA-256: <code>sha256:9f83b2...a841</code></span>
-                  </div>
-                </div>
+              <div style={{ marginTop: '1.75rem', borderTop: '1px solid #e2e8f0', paddingTop: '1rem' }}>
+                <button
+                  type="button"
+                  className="btn-link-action"
+                  onClick={() => setActiveTab('tracado')}
+                >
+                  Ou alternar para o Traçado Digital Calibrado 12D (Caliper) &rarr;
+                </button>
               </div>
             </div>
           )}

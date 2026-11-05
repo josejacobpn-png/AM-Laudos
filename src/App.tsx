@@ -68,9 +68,17 @@ function MainAppContent() {
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
   const [initialUploadFiles, setInitialUploadFiles] = useState<File[]>([]);
 
-  // Sincronizar exames no localStorage
+  // Sincronizar exames no localStorage (remove fileDataUrl para nunca exceder cota do localStorage)
   useEffect(() => {
-    localStorage.setItem('am_laudos_exams_v2', JSON.stringify(exams));
+    try {
+      const sanitizedExams = exams.map(e => {
+        const { fileDataUrl, ...rest } = e;
+        return rest;
+      });
+      localStorage.setItem('am_laudos_exams_v2', JSON.stringify(sanitizedExams));
+    } catch (e) {
+      console.warn('Aviso ao sincronizar exames no localStorage:', e);
+    }
   }, [exams]);
 
   // Sincronizar clínicas no localStorage
