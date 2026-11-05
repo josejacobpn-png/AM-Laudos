@@ -105,7 +105,7 @@ export const Header: React.FC<HeaderProps> = ({
           )}
 
           {/* Aba da Clínica / Posto */}
-          {(isClinic || isAdmin || isDoctor) && (
+          {(isClinic || isAdmin) && (
             <button
               className={`nav-tab-btn ${currentView === 'clinica' ? 'active' : ''}`}
               onClick={() => onViewChange('clinica')}

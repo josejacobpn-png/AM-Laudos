@@ -91,8 +91,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const finalUf = userMeta.uf_crm || profile?.uf_crm || localDocMatch?.uf || (finalRole === 'MEDICO_LAUDISTA' ? 'SP' : undefined);
         const finalSpecialty = userMeta.especialidade || profile?.especialidade || localDocMatch?.specialty || (finalRole === 'MEDICO_LAUDISTA' ? 'Cardiologia Clínica' : undefined);
         const finalPhone = userMeta.telefone || profile?.telefone || localDocMatch?.phone;
-        const finalClinicId = profile?.clinica_id || localDocMatch?.clinicId;
-        const finalClinicName = profile?.clinicas?.nome || localDocMatch?.clinicName;
+        const savedClinics: any[] = (() => {
+          try {
+            return JSON.parse(localStorage.getItem('am_laudos_clinics_v2') || '[]');
+          } catch {
+            return [];
+          }
+        })();
+        const localClinicMatch = savedClinics.find(c => 
+          (c.email && c.email.toLowerCase() === userEmail) || 
+          c.id === (profile?.clinica_id || userMeta.clinica_id)
+        );
+
+        const finalClinicId = profile?.clinica_id || userMeta.clinica_id || localClinicMatch?.id || localDocMatch?.clinicId;
+        const finalClinicName = profile?.clinicas?.nome || localClinicMatch?.name || (finalRole === 'TECNICO_CLINICA' ? finalName : localDocMatch?.clinicName);
 
         // Auto-sincronizar / reparar perfil no Supabase se for médico e a tabela perfis estiver incompleta
         if (finalRole === 'MEDICO_LAUDISTA' && (!profile || profile.tipo !== 'MEDICO_LAUDISTA' || !profile.crm)) {
@@ -202,8 +214,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const finalUf = userMeta.uf_crm || profile?.uf_crm || localDocMatch?.uf || (finalRole === 'MEDICO_LAUDISTA' ? 'SP' : undefined);
           const finalSpecialty = userMeta.especialidade || profile?.especialidade || localDocMatch?.specialty || (finalRole === 'MEDICO_LAUDISTA' ? 'Cardiologia Clínica' : undefined);
           const finalPhone = userMeta.telefone || profile?.telefone || localDocMatch?.phone;
-          const finalClinicId = profile?.clinica_id || localDocMatch?.clinicId;
-          const finalClinicName = profile?.clinicas?.nome || localDocMatch?.clinicName;
+          const savedClinics: any[] = (() => {
+            try {
+              return JSON.parse(localStorage.getItem('am_laudos_clinics_v2') || '[]');
+            } catch {
+              return [];
+            }
+          })();
+          const localClinicMatch = savedClinics.find(c => 
+            (c.email && c.email.toLowerCase() === cleanEmail) || 
+            c.id === (profile?.clinica_id || userMeta.clinica_id)
+          );
+
+          const finalClinicId = profile?.clinica_id || userMeta.clinica_id || localClinicMatch?.id || localDocMatch?.clinicId;
+          const finalClinicName = profile?.clinicas?.nome || localClinicMatch?.name || (finalRole === 'TECNICO_CLINICA' ? finalName : localDocMatch?.clinicName);
 
           if (finalRole === 'MEDICO_LAUDISTA' && (!profile || profile.tipo !== 'MEDICO_LAUDISTA' || !profile.crm)) {
             try {

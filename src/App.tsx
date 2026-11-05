@@ -280,7 +280,14 @@ function MainAppContent() {
         currentView={currentView}
         onViewChange={(view) => {
           setSelectedExamToReport(null);
-          setCurrentView(view);
+          // Isolamento estrito de visualização por perfil
+          if (role === 'MEDICO_LAUDISTA') {
+            setCurrentView('laudista');
+          } else if (role === 'TECNICO_CLINICA') {
+            setCurrentView('clinica');
+          } else {
+            setCurrentView(view);
+          }
         }}
         exams={exams}
         onOpenUpload={() => handleOpenUpload()}
@@ -296,7 +303,7 @@ function MainAppContent() {
           />
         ) : (
           <>
-            {currentView === 'admin' && (
+            {currentView === 'admin' && role === 'ADMIN' && (
               <AdminDashboard
                 clinics={clinics}
                 exams={exams}
@@ -311,7 +318,7 @@ function MainAppContent() {
               />
             )}
 
-            {currentView === 'laudista' && (
+            {(currentView === 'laudista' || role === 'MEDICO_LAUDISTA') && role !== 'TECNICO_CLINICA' && (
               <DemandQueue
                 exams={exams}
                 onSelectExamToReport={handleSelectExamToReport}
@@ -319,12 +326,17 @@ function MainAppContent() {
               />
             )}
 
-            {currentView === 'clinica' && (
+            {(currentView === 'clinica' || role === 'TECNICO_CLINICA') && role !== 'MEDICO_LAUDISTA' && (
               <ClinicDashboard
                 exams={
-                  // Se for clínica, filtra pelos exames da própria clínica
-                  role === 'TECNICO_CLINICA' && currentUser?.clinicId
-                    ? exams.filter(e => e.clinicId === currentUser.clinicId)
+                  // Se for clínica, filtra rigorosamente apenas os exames da respectiva clínica
+                  role === 'TECNICO_CLINICA'
+                    ? exams.filter(e => {
+                        if (currentUser?.clinicId && e.clinicId === currentUser.clinicId) return true;
+                        if (currentUser?.clinicName && e.clinicName?.toLowerCase() === currentUser.clinicName.toLowerCase()) return true;
+                        if (currentUser?.name && e.clinicName?.toLowerCase() === currentUser.name.toLowerCase()) return true;
+                        return false;
+                      })
                     : exams
                 }
                 onOpenUpload={handleOpenUpload}
