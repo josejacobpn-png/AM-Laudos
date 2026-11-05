@@ -1,7 +1,6 @@
 import React, { useState } from 'react';
 import { 
   ArrowLeft, 
-  Sparkles, 
   ShieldCheck, 
   Save, 
   CheckCircle, 
@@ -10,7 +9,6 @@ import {
   Columns
 } from 'lucide-react';
 import type { Exam, Report, DigitalSignature } from '../../types';
-import { MEDICAL_TEMPLATES } from '../../data/templates';
 import { EcgViewer } from './EcgViewer';
 import { DigitalSignatureModal } from './DigitalSignatureModal';
 import { useAuth } from '../../context/AuthContext';
@@ -26,24 +24,15 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
   onBackToQueue,
   onSaveReportAndSign
 }) => {
-  // Inicializar estado do editor com base no exame ou rascunho anterior
-  const initialTpl = MEDICAL_TEMPLATES.find(t => {
-    if (exam.simulatedEcgType === 'ISCHEMIA') return t.id === 'tpl-ischemia';
-    if (exam.simulatedEcgType === 'ARRHYTHMIA') return t.id === 'tpl-af';
-    if (exam.simulatedEcgType === 'LBBB') return t.id === 'tpl-lbbb';
-    return t.id === 'tpl-normal';
-  }) || MEDICAL_TEMPLATES[0];
-
-  const [selectedTemplateId, setSelectedTemplateId] = useState<string>(initialTpl.id);
-
-  const [rhythm, setRhythm] = useState(exam.report?.rhythm || initialTpl.rhythm);
-  const [heartRate, setHeartRate] = useState<number>(exam.report?.heartRate || initialTpl.heartRate);
-  const [prInterval, setPrInterval] = useState(exam.report?.prInterval || initialTpl.prInterval);
-  const [qrsDuration, setQrsDuration] = useState(exam.report?.qrsDuration || initialTpl.qrsDuration);
-  const [qtcInterval, setQtcInterval] = useState(exam.report?.qtcInterval || initialTpl.qtcInterval);
-  const [qrsAxis, setQrsAxis] = useState(exam.report?.qrsAxis || initialTpl.qrsAxis);
-  const [findings, setFindings] = useState(exam.report?.findings || initialTpl.findings);
-  const [conclusion, setConclusion] = useState(exam.report?.conclusion || initialTpl.conclusion);
+  // Inicializar campos do laudo com base no exame ou em branco para preenchimento pelo médico
+  const [rhythm, setRhythm] = useState(exam.report?.rhythm || '');
+  const [heartRate, setHeartRate] = useState<number | string>(exam.report?.heartRate || '');
+  const [prInterval, setPrInterval] = useState(exam.report?.prInterval || '');
+  const [qrsDuration, setQrsDuration] = useState(exam.report?.qrsDuration || '');
+  const [qtcInterval, setQtcInterval] = useState(exam.report?.qtcInterval || '');
+  const [qrsAxis, setQrsAxis] = useState(exam.report?.qrsAxis || '');
+  const [findings, setFindings] = useState(exam.report?.findings || '');
+  const [conclusion, setConclusion] = useState(exam.report?.conclusion || '');
 
   const { currentUser } = useAuth();
 
@@ -56,22 +45,6 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
   const [isSignModalOpen, setIsSignModalOpen] = useState(false);
   const [draftSavedToast, setDraftSavedToast] = useState(false);
   const [isExamExpanded, setIsExamExpanded] = useState<boolean>(false);
-
-  // Carregar máscara ao selecionar
-  const handleApplyTemplate = (tplId: string) => {
-    setSelectedTemplateId(tplId);
-    const tpl = MEDICAL_TEMPLATES.find(t => t.id === tplId);
-    if (!tpl) return;
-
-    setRhythm(tpl.rhythm);
-    setHeartRate(tpl.heartRate);
-    setPrInterval(tpl.prInterval);
-    setQrsDuration(tpl.qrsDuration);
-    setQtcInterval(tpl.qtcInterval);
-    setQrsAxis(tpl.qrsAxis);
-    setFindings(tpl.findings);
-    setConclusion(tpl.conclusion);
-  };
 
   const handleSaveDraft = () => {
     setDraftSavedToast(true);
@@ -116,7 +89,7 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
     doctorUf,
     doctorRqe,
     rhythm,
-    heartRate,
+    heartRate: heartRate === '' ? undefined : Number(heartRate),
     prInterval,
     qrsDuration,
     qtcInterval,
@@ -208,28 +181,9 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
           <EcgViewer exam={exam} />
         </div>
 
-        {/* Painel Direito: Formulário Estruturado de Laudo com Máscaras */}
+        {/* Painel Direito: Formulário Estruturado de Laudo */}
         <div className="split-right-panel">
           <div className="report-form-card">
-            {/* Seletor de Máscaras Predefinidas */}
-            <div className="template-selector-box">
-              <div className="template-label">
-                <Sparkles size={16} className="text-primary" />
-                <strong>Modelos Predefinidos (Máscaras de Laudo)</strong>
-              </div>
-              <select
-                value={selectedTemplateId}
-                onChange={(e) => handleApplyTemplate(e.target.value)}
-                className="template-select"
-              >
-                {MEDICAL_TEMPLATES.map(tpl => (
-                  <option key={tpl.id} value={tpl.id}>
-                    [{tpl.category}] {tpl.name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
             {/* Parâmetros Eletrocardiográficos */}
             <div className="form-sub-header">
               <Activity size={16} />
