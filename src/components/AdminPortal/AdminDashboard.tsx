@@ -14,7 +14,7 @@ import {
 } from 'lucide-react';
 import type { Clinic, Exam, UserProfile } from '../../types';
 import { DEMO_USERS } from '../../data/mockUsers';
-import { formatDateTimeBR } from '../../utils/cryptoSim';
+import { formatDateTimeBR, formatDoctorDisplayName } from '../../utils/cryptoSim';
 import { supabase, isSupabaseConfigured, createIsolatedAuthClient } from '../../services/supabase';
 
 export const BRAZILIAN_UFS = [
@@ -294,9 +294,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setDoctorFormError('');
     setIsSubmittingDoctor(true);
 
-    const formattedName = trimmedName.startsWith('Dr.') || trimmedName.startsWith('Dra.')
-      ? trimmedName
-      : `Dr(a). ${trimmedName}`;
+    const formattedName = formatDoctorDisplayName(trimmedName);
 
     let createdId = `usr-medico-${Date.now()}`;
 
@@ -589,9 +587,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setEditDoctorError('');
 
     const trimmedName = editDocNome.trim();
-    const formattedName = trimmedName.startsWith('Dr.') || trimmedName.startsWith('Dra.')
-      ? trimmedName
-      : `Dr(a). ${trimmedName}`;
+    const formattedName = formatDoctorDisplayName(trimmedName);
 
     const updated: UserProfile = {
       ...editingDoctor,

@@ -11,7 +11,7 @@ import {
   AlertCircle
 } from 'lucide-react';
 import type { Exam, Report, DigitalSignature } from '../../types';
-import { calculateSha256, formatDateTimeBR } from '../../utils/cryptoSim';
+import { calculateSha256, formatDateTimeBR, formatDoctorDisplayName } from '../../utils/cryptoSim';
 import { useAuth } from '../../context/AuthContext';
 import { isSupabaseConfigured, createIsolatedAuthClient } from '../../services/supabase';
 
@@ -40,10 +40,11 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
 
   if (!isOpen) return null;
 
-  // Dados do médico logado
-  const doctorName = (currentUser?.role === 'MEDICO_LAUDISTA' && currentUser.name)
+  // Dados do médico logado com sanitização completa de prefixos
+  const rawDoctorName = (currentUser?.role === 'MEDICO_LAUDISTA' && currentUser.name)
     ? currentUser.name
     : reportDraft.doctorName || 'Dr. Fernando Albuquerque';
+  const doctorName = formatDoctorDisplayName(rawDoctorName);
   const doctorCrm = (currentUser?.role === 'MEDICO_LAUDISTA' && currentUser.crm)
     ? currentUser.crm
     : reportDraft.doctorCrm || '112.540';
@@ -143,7 +144,7 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
             <div className="doctor-credential-box">
               <Award className="text-primary" size={28} />
               <div className="doctor-cred-text">
-                <h4>DR(A). {doctorName.toUpperCase()}</h4>
+                <h4>{formatDoctorDisplayName(doctorName)}</h4>
                 <p>Médico(a) Cardiologista • CRM {doctorCrm}-{doctorUf}{doctorRqe ? ` • RQE ${doctorRqe}` : ''}</p>
                 <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.2rem' }}>
                   Usuário Laudista: <strong>{doctorEmail}</strong>
@@ -260,7 +261,7 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
               <div className="stamp-visual-preview">
                 <div className="stamp-icp-header">AM LAUDOS • ASSINATURA ELETRÔNICA AUTÊNTICA</div>
                 <div className="stamp-body">
-                  <strong>DR(A). {signedData?.doctorName?.toUpperCase()}</strong>
+                  <strong>{formatDoctorDisplayName(signedData?.doctorName)}</strong>
                   <span>CRM {signedData?.crm}-{signedData?.uf}{signedData?.rqe ? ` • RQE ${signedData.rqe}` : ''}</span>
                   <small>Assinado em: {formatDateTimeBR(signedData?.signedAt)}</small>
                   <small style={{ marginTop: '0.2rem', color: '#047857', fontWeight: 600 }}>

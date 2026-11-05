@@ -1,6 +1,6 @@
 import jsPDF from 'jspdf';
 import type { Exam, Report } from '../types';
-import { formatDateTimeBR } from './cryptoSim';
+import { formatDateTimeBR, formatDoctorDisplayName } from './cryptoSim';
 
 export function generateLaudoPdf(exam: Exam, report: Report): jsPDF {
   const doc = new jsPDF({
@@ -226,7 +226,7 @@ export function generateLaudoPdf(exam: Exam, report: Report): jsPDF {
   doc.setTextColor(15, 23, 42);
   doc.setFont('helvetica', 'bold');
   doc.setFontSize(10);
-  doc.text(`DR(A). ${report.doctorName.toUpperCase()}`, margin + 34, sigBoxY + 8);
+  doc.text(formatDoctorDisplayName(report.doctorName), margin + 34, sigBoxY + 8);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(8.5);

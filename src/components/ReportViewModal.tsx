@@ -9,7 +9,7 @@ import {
   Copy
 } from 'lucide-react';
 import type { Exam } from '../types';
-import { formatDateTimeBR } from '../utils/cryptoSim';
+import { formatDateTimeBR, formatDoctorDisplayName } from '../utils/cryptoSim';
 import { generateLaudoPdf } from '../utils/pdfGenerator';
 import logoImg from '../assets/logo-amlaudos.jpg';
 
@@ -209,7 +209,7 @@ export const ReportViewModal: React.FC<ReportViewModalProps> = ({
               </div>
 
               <div className="sig-meta-content">
-                <h4>DR(A). {report.doctorName.toUpperCase()}</h4>
+                <h4>{formatDoctorDisplayName(report.doctorName)}</h4>
                 <p>Médico(a) Cardiologista • CRM: <strong>{report.doctorCrm}-{report.doctorUf}</strong>{report.doctorRqe ? ` • RQE: ${report.doctorRqe}` : ''}</p>
                 <p>Assinatura Digital: <strong>{sig?.certificateAuthority || 'Certificado Digital Padrão CFM'}</strong></p>
                 <p>Carimbo do Tempo: <strong>{formatDateTimeBR(sig?.signedAt || report.createdAt)}</strong> (Horário de Brasília)</p>

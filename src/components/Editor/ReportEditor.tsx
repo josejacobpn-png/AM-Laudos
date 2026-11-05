@@ -12,6 +12,7 @@ import type { Exam, Report, DigitalSignature } from '../../types';
 import { EcgViewer } from './EcgViewer';
 import { DigitalSignatureModal } from './DigitalSignatureModal';
 import { useAuth } from '../../context/AuthContext';
+import { formatDoctorDisplayName } from '../../utils/cryptoSim';
 
 interface ReportEditorProps {
   exam: Exam;
@@ -36,8 +37,9 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
 
   const { currentUser } = useAuth();
 
-  // Médico logado
-  const doctorName = (currentUser?.role === 'MEDICO_LAUDISTA' && currentUser.name) ? currentUser.name : 'Dr. Fernando Albuquerque';
+  // Médico logado com higienização de prefixos duplicados
+  const rawDocName = (currentUser?.role === 'MEDICO_LAUDISTA' && currentUser.name) ? currentUser.name : 'Dr. Fernando Albuquerque';
+  const doctorName = formatDoctorDisplayName(rawDocName);
   const doctorCrm = (currentUser?.role === 'MEDICO_LAUDISTA' && currentUser.crm) ? currentUser.crm : '112.540';
   const doctorUf = (currentUser?.role === 'MEDICO_LAUDISTA' && currentUser.uf) ? currentUser.uf : 'SP';
   const doctorRqe = (currentUser?.role === 'MEDICO_LAUDISTA' && currentUser.rqe) ? currentUser.rqe : '24910';

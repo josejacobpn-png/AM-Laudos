@@ -35,3 +35,41 @@ export function generateProtocolNumber(): string {
   const rand = Math.floor(100000 + Math.random() * 900000);
   return `ECG-${year}-${rand}`;
 }
+
+/**
+ * Remove redundâncias de prefixos médicos (ex: "DR(A). DR(A). DRA GIOVANA MARIA" -> "DRA. GIOVANA MARIA")
+ * e formata para exibição padronizada e elegante em laudos e assinaturas.
+ */
+export function formatDoctorDisplayName(rawName?: string): string {
+  if (!rawName) return 'MÉDICO(A) CARDIOLOGISTA';
+  let cleaned = rawName.trim();
+
+  let isDra = false;
+  let isDr = false;
+
+  // Regex para capturar e limpar qualquer prefixo no início repetidamente
+  const prefixRegex = /^(dr\(a\)\.?|dr\.|dra\.|dr\b|dra\b|doutor\(a\)\.?|doutor\b|doutora\b)\s*/i;
+
+  while (prefixRegex.test(cleaned)) {
+    const match = cleaned.match(prefixRegex);
+    if (match) {
+      const p = match[1].toLowerCase();
+      if (p.startsWith('dra') || p.startsWith('doutora')) {
+        isDra = true;
+      } else if ((p.startsWith('dr') || p.startsWith('doutor')) && !p.includes('(a)')) {
+        isDr = true;
+      }
+      cleaned = cleaned.replace(prefixRegex, '').trim();
+    }
+  }
+
+  // Remove caracteres residuais como pontos, traços ou espaços no início
+  cleaned = cleaned.replace(/^[.\s-]+/, '').trim();
+
+  if (!cleaned) {
+    return isDra ? 'DRA.' : isDr ? 'DR.' : 'DR(A).';
+  }
+
+  const prefix = isDra ? 'DRA.' : isDr ? 'DR.' : 'DR(A).';
+  return `${prefix} ${cleaned.toUpperCase()}`;
+}

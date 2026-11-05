@@ -2,6 +2,7 @@ import React, { createContext, useContext, useState, useEffect } from 'react';
 import type { UserProfile, UserRole } from '../types';
 import { DEMO_USERS } from '../data/mockUsers';
 import { supabase, isSupabaseConfigured } from '../services/supabase';
+import { formatDoctorDisplayName } from '../utils/cryptoSim';
 
 interface AuthContextType {
   currentUser: UserProfile | null;
@@ -86,7 +87,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           finalRole = profile.tipo as UserRole;
         }
 
-        const finalName = userMeta.nome_completo || profile?.nome_completo || localDocMatch?.name || (isMasterAdmin ? 'Administrador Geral' : userEmail.split('@')[0].toUpperCase());
+        const rawName = userMeta.nome_completo || profile?.nome_completo || localDocMatch?.name || (isMasterAdmin ? 'Administrador Geral' : userEmail.split('@')[0].toUpperCase());
+        const finalName = finalRole === 'MEDICO_LAUDISTA' ? formatDoctorDisplayName(rawName) : rawName;
         const finalCrm = userMeta.crm || profile?.crm || localDocMatch?.crm;
         const finalUf = userMeta.uf_crm || profile?.uf_crm || localDocMatch?.uf || (finalRole === 'MEDICO_LAUDISTA' ? 'SP' : undefined);
         const finalSpecialty = userMeta.especialidade || profile?.especialidade || localDocMatch?.specialty || (finalRole === 'MEDICO_LAUDISTA' ? 'Cardiologia Clínica' : undefined);
@@ -209,7 +211,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             finalRole = selectedRole;
           }
 
-          const finalName = userMeta.nome_completo || profile?.nome_completo || localDocMatch?.name || (isMasterAdmin ? 'Administrador Geral' : cleanEmail.split('@')[0].toUpperCase());
+          const rawName = userMeta.nome_completo || profile?.nome_completo || localDocMatch?.name || (isMasterAdmin ? 'Administrador Geral' : cleanEmail.split('@')[0].toUpperCase());
+          const finalName = finalRole === 'MEDICO_LAUDISTA' ? formatDoctorDisplayName(rawName) : rawName;
           const finalCrm = userMeta.crm || profile?.crm || localDocMatch?.crm;
           const finalUf = userMeta.uf_crm || profile?.uf_crm || localDocMatch?.uf || (finalRole === 'MEDICO_LAUDISTA' ? 'SP' : undefined);
           const finalSpecialty = userMeta.especialidade || profile?.especialidade || localDocMatch?.specialty || (finalRole === 'MEDICO_LAUDISTA' ? 'Cardiologia Clínica' : undefined);
