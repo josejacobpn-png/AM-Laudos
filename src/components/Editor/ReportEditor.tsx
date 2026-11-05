@@ -292,7 +292,7 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
                 onClick={handleOpenSignature}
               >
                 <ShieldCheck size={19} />
-                <span>Assinar Digitalmente e Emitir Laudo</span>
+                <span>Assinar com Senha e Emitir Laudo</span>
               </button>
             </div>
           </div>

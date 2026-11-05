@@ -5,10 +5,15 @@ import {
   CheckCircle, 
   X, 
   FileCheck, 
-  Award
+  Award,
+  Eye,
+  EyeOff,
+  AlertCircle
 } from 'lucide-react';
 import type { Exam, Report, DigitalSignature } from '../../types';
 import { calculateSha256, formatDateTimeBR } from '../../utils/cryptoSim';
+import { useAuth } from '../../context/AuthContext';
+import { isSupabaseConfigured, createIsolatedAuthClient } from '../../services/supabase';
 
 interface DigitalSignatureModalProps {
   isOpen: boolean;
@@ -25,33 +30,70 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
   reportDraft,
   onSignComplete
 }) => {
-  const [certType, setCertType] = useState<'A1_ARQUIVO' | 'A3_NUVEM_BIRD_ID' | 'A3_TOKEN_NEOID'>('A1_ARQUIVO');
-  const [pin, setPin] = useState('1234');
+  const { currentUser } = useAuth();
+  const [password, setPassword] = useState('');
+  const [showPassword, setShowPassword] = useState(false);
   const [isSigning, setIsSigning] = useState(false);
+  const [errorMessage, setErrorMessage] = useState('');
   const [step, setStep] = useState<'AUTH' | 'SUCCESS'>('AUTH');
   const [signedData, setSignedData] = useState<DigitalSignature | null>(null);
 
   if (!isOpen) return null;
 
-  const doctorName = reportDraft.doctorName || 'Dr. Fernando Albuquerque';
-  const doctorCrm = reportDraft.doctorCrm || '112.540';
-  const doctorUf = reportDraft.doctorUf || 'SP';
-  const doctorRqe = reportDraft.doctorRqe || '24910';
+  // Dados do médico logado
+  const doctorName = (currentUser?.role === 'MEDICO_LAUDISTA' && currentUser.name)
+    ? currentUser.name
+    : reportDraft.doctorName || 'Dr. Fernando Albuquerque';
+  const doctorCrm = (currentUser?.role === 'MEDICO_LAUDISTA' && currentUser.crm)
+    ? currentUser.crm
+    : reportDraft.doctorCrm || '112.540';
+  const doctorUf = (currentUser?.role === 'MEDICO_LAUDISTA' && currentUser.uf)
+    ? currentUser.uf
+    : reportDraft.doctorUf || 'SP';
+  const doctorRqe = (currentUser?.role === 'MEDICO_LAUDISTA' && currentUser.rqe)
+    ? currentUser.rqe
+    : reportDraft.doctorRqe;
+  const doctorEmail = currentUser?.email || 'medico@amlaudos.com.br';
 
   const handleSign = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!pin) {
-      alert('Por favor, informe seu PIN de assinatura digital.');
+    setErrorMessage('');
+
+    const cleanPass = password.trim();
+    if (!cleanPass) {
+      setErrorMessage('Por favor, digite a sua senha de usuário para assinar o laudo.');
       return;
     }
 
     setIsSigning(true);
 
+    // Validação com o Supabase Auth usando as credenciais do médico logado
+    if (isSupabaseConfigured && currentUser?.email) {
+      try {
+        const authClient = createIsolatedAuthClient();
+        const { error: authError } = await authClient.auth.signInWithPassword({
+          email: currentUser.email,
+          password: cleanPass
+        });
+
+        if (authError) {
+          setIsSigning(false);
+          setErrorMessage('Senha incorreta. Por favor, digite a senha cadastrada para o seu usuário.');
+          return;
+        }
+
+        // Encerrar a sessão do cliente isolado para não deixar conexões abertas
+        await authClient.auth.signOut();
+      } catch (err) {
+        console.warn('Aviso na validação de credencial de assinatura:', err);
+      }
+    }
+
     // Calcular Hash SHA-256 do documento (Protocolo + Paciente + Parecer + Timestamp)
-    const contentToHash = `${exam.protocolNumber}|${exam.patient.cpf}|${reportDraft.rhythm}|${reportDraft.conclusion}|${new Date().toISOString()}`;
+    const now = new Date().toISOString();
+    const contentToHash = `${exam.protocolNumber}|${exam.patient.cpf}|${reportDraft.rhythm || ''}|${reportDraft.conclusion || ''}|${now}`;
     const sha256 = await calculateSha256(contentToHash);
 
-    const now = new Date().toISOString();
     const validationUrl = `https://amlaudos.com.br/validar/${exam.protocolNumber}?h=${sha256.substring(0, 12)}`;
 
     const signature: DigitalSignature = {
@@ -59,16 +101,12 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
       crm: doctorCrm,
       uf: doctorUf,
       rqe: doctorRqe,
-      certificateType: certType,
+      certificateType: 'ASSINATURA_ELETRONICA',
       signedAt: now,
       sha256Hash: sha256,
       qrCodeValidationUrl: validationUrl,
-      certificateAuthority: certType === 'A1_ARQUIVO' 
-        ? 'Certificado A1 (Assinatura Digital CFM)' 
-        : certType === 'A3_NUVEM_BIRD_ID' 
-        ? 'Certificado em Nuvem (BirdID)' 
-        : 'Token Criptográfico USB / Smartcard',
-      serialNumber: '7482-9901-2834-0192',
+      certificateAuthority: 'Assinatura Eletrônica AM Laudos (Credenciais do Médico Laudista)',
+      serialNumber: `AUT-${exam.protocolNumber}-${Date.now().toString(36).toUpperCase()}`,
       isQualifiedIcpBrasil: false
     };
 
@@ -76,7 +114,7 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
       setSignedData(signature);
       setStep('SUCCESS');
       setIsSigning(false);
-    }, 700);
+    }, 400);
   };
 
   const handleFinalize = () => {
@@ -92,8 +130,8 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
           <div className="modal-title-wrap">
             <div className="icp-brasil-stamp-mini">AM LAUDOS</div>
             <div>
-              <h3>Assinatura Digital do Laudo</h3>
-              <p>Em conformidade com as Resoluções CFM nº 2.299/2021 e 2.314/2022 (Telemedicina)</p>
+              <h3>Assinatura do Laudo</h3>
+              <p>Autenticação por credenciais do médico laudista (Resoluções CFM nº 2.299/2021 e 2.314/2022)</p>
             </div>
           </div>
           <button className="btn-close" onClick={onClose}><X size={20} /></button>
@@ -101,78 +139,67 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
 
         {step === 'AUTH' ? (
           <form onSubmit={handleSign} className="modal-body-form">
-            {/* Dados do Médico e Certificado */}
+            {/* Dados do Médico e Credencial */}
             <div className="doctor-credential-box">
               <Award className="text-primary" size={28} />
               <div className="doctor-cred-text">
                 <h4>DR(A). {doctorName.toUpperCase()}</h4>
-                <p>Médico(a) Cardiologista • CRM {doctorCrm}-{doctorUf} • RQE {doctorRqe}</p>
+                <p>Médico(a) Cardiologista • CRM {doctorCrm}-{doctorUf}{doctorRqe ? ` • RQE ${doctorRqe}` : ''}</p>
+                <div style={{ fontSize: '0.78rem', color: '#64748b', marginTop: '0.2rem' }}>
+                  Usuário Laudista: <strong>{doctorEmail}</strong>
+                </div>
                 <span className="badge-legal-cf">Profissional Habilitado no Conselho Regional de Medicina</span>
               </div>
             </div>
 
-            {/* Seleção do Tipo de Certificado Digital */}
+            {/* PIN de Segurança / Senha de Usuário do Laudista */}
             <div className="form-group">
-              <label>Selecione seu Certificado Digital de Assinatura</label>
-              <div className="cert-type-options">
-                <label className={`cert-radio-option ${certType === 'A1_ARQUIVO' ? 'selected' : ''}`}>
-                  <input
-                    type="radio"
-                    name="certType"
-                    checked={certType === 'A1_ARQUIVO'}
-                    onChange={() => setCertType('A1_ARQUIVO')}
-                  />
-                  <div>
-                    <strong>Certificado A1 (Arquivo PFX / Nuvem)</strong>
-                    <small>AC Soluti Multipla v5 • Validade até 2028</small>
-                  </div>
-                </label>
-
-                <label className={`cert-radio-option ${certType === 'A3_NUVEM_BIRD_ID' ? 'selected' : ''}`}>
-                  <input
-                    type="radio"
-                    name="certType"
-                    checked={certType === 'A3_NUVEM_BIRD_ID'}
-                    onChange={() => setCertType('A3_NUVEM_BIRD_ID')}
-                  />
-                  <div>
-                    <strong>Certificado A3 Nuvem (BirdID Certisign)</strong>
-                    <small>Autorização por aplicativo no smartphone (OTP / Push)</small>
-                  </div>
-                </label>
-
-                <label className={`cert-radio-option ${certType === 'A3_TOKEN_NEOID' ? 'selected' : ''}`}>
-                  <input
-                    type="radio"
-                    name="certType"
-                    checked={certType === 'A3_TOKEN_NEOID'}
-                    onChange={() => setCertType('A3_TOKEN_NEOID')}
-                  />
-                  <div>
-                    <strong>Token Criptográfico USB / Smartcard (NeoID)</strong>
-                    <small>Dispositivo físico conectado à máquina local</small>
-                  </div>
-                </label>
-              </div>
-            </div>
-
-            {/* PIN de Segurança */}
-            <div className="form-group">
-              <label>PIN de Assinatura do Certificado (Senha Numérica)</label>
-              <div className="pin-input-wrap">
+              <label>Senha de Acesso do Laudista (PIN de Assinatura)</label>
+              <div className="pin-input-wrap" style={{ position: 'relative' }}>
                 <Lock size={18} className="pin-icon" />
                 <input
-                  type="password"
+                  type={showPassword ? 'text' : 'password'}
                   required
-                  placeholder="Digite o PIN do certificado..."
-                  value={pin}
-                  onChange={(e) => setPin(e.target.value)}
+                  placeholder="Digite sua senha de usuário..."
+                  value={password}
+                  onChange={(e) => {
+                    setPassword(e.target.value);
+                    if (errorMessage) setErrorMessage('');
+                  }}
                   className="form-control pin-field"
+                  style={{ paddingRight: '2.5rem' }}
+                  autoFocus
                 />
+                <button
+                  type="button"
+                  onClick={() => setShowPassword(!showPassword)}
+                  style={{
+                    position: 'absolute',
+                    right: '0.75rem',
+                    background: 'none',
+                    border: 'none',
+                    color: '#64748b',
+                    cursor: 'pointer',
+                    display: 'flex',
+                    alignItems: 'center',
+                    padding: '0.25rem'
+                  }}
+                  title={showPassword ? 'Ocultar senha' : 'Ver senha'}
+                >
+                  {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
+                </button>
               </div>
-              <small className="field-hint">
-                Simulação de ambiente seguro: o PIN padrão para teste é <strong>1234</strong>.
-              </small>
+
+              {errorMessage ? (
+                <div style={{ color: '#ef4444', fontSize: '0.8rem', marginTop: '0.4rem', display: 'flex', alignItems: 'center', gap: '0.35rem' }}>
+                  <AlertCircle size={14} />
+                  <span>{errorMessage}</span>
+                </div>
+              ) : (
+                <small className="field-hint">
+                  Digite a mesma senha de acesso utilizada no seu login ({doctorEmail}).
+                </small>
+              )}
             </div>
 
             {/* Resumo do Documento a ser Selado */}
@@ -207,11 +234,11 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
                 className="btn-primary-action btn-sign"
               >
                 {isSigning ? (
-                  <span>Assinando digitalmente...</span>
+                  <span>Validando credenciais e assinando...</span>
                 ) : (
                   <>
                     <ShieldCheck size={18} />
-                    <span>Assinar Laudo Digitalmente</span>
+                    <span>Assinar e Liberar Laudo</span>
                   </>
                 )}
               </button>
@@ -226,16 +253,19 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
 
             <h3>Laudo Assinado com Sucesso!</h3>
             <p className="success-desc">
-              O documento eletrônico recebeu assinatura digital e foi selado com integridade e validade médica.
+              O documento eletrônico recebeu assinatura com selo de autenticidade e integridade médica (CFM nº 2.299/2021 e 2.314/2022).
             </p>
 
             <div className="signed-details-card">
               <div className="stamp-visual-preview">
-                <div className="stamp-icp-header">AM LAUDOS • DOCUMENTO AUTÊNTICO</div>
+                <div className="stamp-icp-header">AM LAUDOS • ASSINATURA ELETRÔNICA AUTÊNTICA</div>
                 <div className="stamp-body">
-                  <strong>{signedData?.doctorName}</strong>
-                  <span>CRM {signedData?.crm}-{signedData?.uf} • RQE {signedData?.rqe}</span>
+                  <strong>DR(A). {signedData?.doctorName?.toUpperCase()}</strong>
+                  <span>CRM {signedData?.crm}-{signedData?.uf}{signedData?.rqe ? ` • RQE ${signedData.rqe}` : ''}</span>
                   <small>Assinado em: {formatDateTimeBR(signedData?.signedAt)}</small>
+                  <small style={{ marginTop: '0.2rem', color: '#047857', fontWeight: 600 }}>
+                    Autenticado via senha de usuário ({doctorEmail})
+                  </small>
                 </div>
                 <div className="stamp-hash">
                   <strong>HASH SHA-256:</strong>
@@ -245,7 +275,6 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
 
               <div className="qr-code-validation-box">
                 <div className="qr-frame">
-                  {/* SVG QR Code simulado de alta fidelidade */}
                   <svg viewBox="0 0 100 100" width="80" height="80">
                     <rect width="100" height="100" fill="#ffffff" />
                     <rect x="10" y="10" width="24" height="24" fill="#0f172a" />
@@ -271,7 +300,7 @@ export const DigitalSignatureModal: React.FC<DigitalSignatureModalProps> = ({
                 </div>
                 <div className="qr-info">
                   <strong>QR Code de Validação Pública</strong>
-                  <p>Qualquer pessoa ou instituição pode ler este código para validar a autenticidade e integridade no portal oficial.</p>
+                  <p>Qualquer pessoa ou instituição de saúde pode escanear este código para verificar a autenticidade e integridade no portal oficial.</p>
                 </div>
               </div>
             </div>

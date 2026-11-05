@@ -48,7 +48,7 @@ export interface DigitalSignature {
   crm: string;
   uf: string;
   rqe?: string;
-  certificateType: 'A1_ARQUIVO' | 'A3_NUVEM_BIRD_ID' | 'A3_TOKEN_NEOID';
+  certificateType?: 'A1_ARQUIVO' | 'A3_NUVEM_BIRD_ID' | 'A3_TOKEN_NEOID' | 'ASSINATURA_ELETRONICA' | string;
   signedAt: string;
   sha256Hash: string;
   qrCodeValidationUrl: string;
