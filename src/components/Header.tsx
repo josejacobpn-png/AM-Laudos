@@ -64,8 +64,8 @@ export const Header: React.FC<HeaderProps> = ({
           />
         </div>
 
-        {/* Alerta de Emergência Crítica no Cabeçalho (Visível para Médicos e Admins) */}
-        {(isDoctor || isAdmin) && emergencyCount > 0 && (
+        {/* Alerta de Emergência Crítica no Cabeçalho (Visível APENAS para Médicos e Admins, NUNCA para Clínicas) */}
+        {!isClinic && (isDoctor || isAdmin) && emergencyCount > 0 && (
           <div className="header-emergency-alert" onClick={() => onViewChange('laudista')}>
             <AlertTriangle size={18} className="emergency-icon-pulse" />
             <div>
@@ -88,8 +88,8 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Aba do Médico Laudista */}
-          {(isDoctor || isAdmin) && (
+          {/* Aba do Médico Laudista (Exclusiva do Médico e Admin) */}
+          {(isDoctor || isAdmin) && !isClinic && (
             <button
               className={`nav-tab-btn ${currentView === 'laudista' ? 'active' : ''}`}
               onClick={() => onViewChange('laudista')}
@@ -104,8 +104,8 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
           )}
 
-          {/* Aba da Clínica / Posto */}
-          {(isClinic || isAdmin) && (
+          {/* Aba da Clínica / Posto (Exclusiva da Clínica e Admin) */}
+          {(isClinic || isAdmin) && !isDoctor && (
             <button
               className={`nav-tab-btn ${currentView === 'clinica' ? 'active' : ''}`}
               onClick={() => onViewChange('clinica')}
@@ -118,8 +118,8 @@ export const Header: React.FC<HeaderProps> = ({
 
         {/* Ação Rápida e Perfil Ativo com Dropdown */}
         <div className="header-actions">
-          {/* Botão de Enviar Exame visível para Clínicas e Admins */}
-          {(isClinic || isAdmin) && (
+          {/* Botão de Enviar Exame visível APENAS para Clínicas e Admins, NUNCA para Médicos */}
+          {!isDoctor && (isClinic || isAdmin) && (
             <button className="btn-quick-upload" onClick={onOpenUpload}>
               <UploadCloud size={17} />
               <span>Enviar Exame</span>

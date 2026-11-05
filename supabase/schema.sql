@@ -514,21 +514,48 @@ WITH CHECK (auth.uid() = id);
 
 CREATE OR REPLACE FUNCTION public.handle_new_user()
 RETURNS trigger AS $$
+DECLARE
+  v_tipo tipo_usuario;
+  v_crm VARCHAR;
+  v_uf VARCHAR;
+  v_especialidade VARCHAR;
+  v_clinica_id UUID;
 BEGIN
-  INSERT INTO public.perfis (id, nome_completo, tipo, created_at, updated_at)
+  -- Determinar tipo com base no metadado do cadastro
+  IF (new.raw_user_meta_data->>'tipo') IS NOT NULL THEN
+    v_tipo := (new.raw_user_meta_data->>'tipo')::tipo_usuario;
+  ELSIF new.email = 'g2autodev@gmail.com' OR new.email ILIKE '%admin%' THEN
+    v_tipo := 'ADMIN'::tipo_usuario;
+  ELSIF (new.raw_user_meta_data->>'crm') IS NOT NULL OR new.email ILIKE '%medico%' OR new.email ILIKE '%cardio%' OR new.email ILIKE '%dr%' THEN
+    v_tipo := 'MEDICO_LAUDISTA'::tipo_usuario;
+  ELSE
+    v_tipo := 'TECNICO_CLINICA'::tipo_usuario;
+  END IF;
+
+  v_crm := new.raw_user_meta_data->>'crm';
+  v_uf := new.raw_user_meta_data->>'uf_crm';
+  v_especialidade := COALESCE(new.raw_user_meta_data->>'especialidade', 'Cardiologia Clínica');
+  v_clinica_id := NULLIF(new.raw_user_meta_data->>'clinica_id', '')::UUID;
+
+  INSERT INTO public.perfis (id, nome_completo, tipo, crm, uf_crm, especialidade, clinica_id, created_at, updated_at)
   VALUES (
     new.id,
     COALESCE(new.raw_user_meta_data->>'nome_completo', split_part(new.email, '@', 1)),
-    CASE 
-      WHEN new.email = 'g2autodev@gmail.com' OR new.email ILIKE '%admin%' THEN 'ADMIN'::tipo_usuario
-      WHEN new.email ILIKE '%medico%' OR new.email ILIKE '%cardio%' THEN 'MEDICO_LAUDISTA'::tipo_usuario
-      ELSE 'TECNICO_CLINICA'::tipo_usuario
-    END,
+    v_tipo,
+    v_crm,
+    v_uf,
+    v_especialidade,
+    v_clinica_id,
     NOW(),
     NOW()
   )
   ON CONFLICT (id) DO UPDATE SET
     tipo = EXCLUDED.tipo,
+    nome_completo = COALESCE(EXCLUDED.nome_completo, public.perfis.nome_completo),
+    crm = COALESCE(EXCLUDED.crm, public.perfis.crm),
+    uf_crm = COALESCE(EXCLUDED.uf_crm, public.perfis.uf_crm),
+    especialidade = COALESCE(EXCLUDED.especialidade, public.perfis.especialidade),
+    clinica_id = COALESCE(EXCLUDED.clinica_id, public.perfis.clinica_id),
     updated_at = NOW();
   RETURN new;
 END;

@@ -67,32 +67,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           d.id === session.user.id
         );
 
-        // 3. Determinar perfil real do usuário
-        let finalRole: UserRole = 'TECNICO_CLINICA';
-        if (isMasterAdmin) {
-          finalRole = 'ADMIN';
-        } else if (
-          userMeta.tipo === 'MEDICO_LAUDISTA' || 
-          profile?.tipo === 'MEDICO_LAUDISTA' || 
-          localDocMatch ||
-          userMeta.crm ||
-          profile?.crm ||
-          userEmail.includes('medico') || 
-          userEmail.includes('cardio') || 
-          userEmail.includes('dr.') ||
-          userEmail.startsWith('dr')
-        ) {
-          finalRole = 'MEDICO_LAUDISTA';
-        } else if (profile?.tipo) {
-          finalRole = profile.tipo as UserRole;
-        }
-
-        const rawName = userMeta.nome_completo || profile?.nome_completo || localDocMatch?.name || (isMasterAdmin ? 'Administrador Geral' : userEmail.split('@')[0].toUpperCase());
-        const finalName = finalRole === 'MEDICO_LAUDISTA' ? formatDoctorDisplayName(rawName) : rawName;
-        const finalCrm = userMeta.crm || profile?.crm || localDocMatch?.crm;
-        const finalUf = userMeta.uf_crm || profile?.uf_crm || localDocMatch?.uf || (finalRole === 'MEDICO_LAUDISTA' ? 'SP' : undefined);
-        const finalSpecialty = userMeta.especialidade || profile?.especialidade || localDocMatch?.specialty || (finalRole === 'MEDICO_LAUDISTA' ? 'Cardiologia Clínica' : undefined);
-        const finalPhone = userMeta.telefone || profile?.telefone || localDocMatch?.phone;
         const savedClinics: any[] = (() => {
           try {
             return JSON.parse(localStorage.getItem('am_laudos_clinics_v2') || '[]');
@@ -104,6 +78,45 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           (c.email && c.email.toLowerCase() === userEmail) || 
           c.id === (profile?.clinica_id || userMeta.clinica_id)
         );
+
+        // 3. Determinar perfil real do usuário
+        const isDoctorAccount = Boolean(
+          userMeta.tipo === 'MEDICO_LAUDISTA' || 
+          profile?.tipo === 'MEDICO_LAUDISTA' || 
+          localDocMatch ||
+          userMeta.crm ||
+          profile?.crm ||
+          userEmail.includes('medico') || 
+          userEmail.includes('cardio') || 
+          userEmail.includes('dr.') ||
+          userEmail.startsWith('dr')
+        );
+
+        const isClinicAccount = Boolean(
+          userMeta.tipo === 'TECNICO_CLINICA' ||
+          profile?.tipo === 'TECNICO_CLINICA' ||
+          localClinicMatch ||
+          userMeta.clinica_id ||
+          profile?.clinica_id
+        );
+
+        let finalRole: UserRole = 'TECNICO_CLINICA';
+        if (isMasterAdmin) {
+          finalRole = 'ADMIN';
+        } else if (isDoctorAccount && !isClinicAccount) {
+          finalRole = 'MEDICO_LAUDISTA';
+        } else if (isClinicAccount) {
+          finalRole = 'TECNICO_CLINICA';
+        } else if (profile?.tipo) {
+          finalRole = profile.tipo as UserRole;
+        }
+
+        const rawName = userMeta.nome_completo || profile?.nome_completo || localDocMatch?.name || (isMasterAdmin ? 'Administrador Geral' : userEmail.split('@')[0].toUpperCase());
+        const finalName = finalRole === 'MEDICO_LAUDISTA' ? formatDoctorDisplayName(rawName) : rawName;
+        const finalCrm = userMeta.crm || profile?.crm || localDocMatch?.crm;
+        const finalUf = userMeta.uf_crm || profile?.uf_crm || localDocMatch?.uf || (finalRole === 'MEDICO_LAUDISTA' ? 'SP' : undefined);
+        const finalSpecialty = userMeta.especialidade || profile?.especialidade || localDocMatch?.specialty || (finalRole === 'MEDICO_LAUDISTA' ? 'Cardiologia Clínica' : undefined);
+        const finalPhone = userMeta.telefone || profile?.telefone || localDocMatch?.phone;
 
         const finalClinicId = profile?.clinica_id || userMeta.clinica_id || localClinicMatch?.id || localDocMatch?.clinicId;
         const finalClinicName = profile?.clinicas?.nome || localClinicMatch?.name || (finalRole === 'TECNICO_CLINICA' ? finalName : localDocMatch?.clinicName);
@@ -189,34 +202,6 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             d.id === data.user.id
           );
 
-          let finalRole: UserRole = 'TECNICO_CLINICA';
-          if (isMasterAdmin) {
-            finalRole = 'ADMIN';
-          } else if (
-            userMeta.tipo === 'MEDICO_LAUDISTA' || 
-            profile?.tipo === 'MEDICO_LAUDISTA' || 
-            selectedRole === 'MEDICO_LAUDISTA' ||
-            localDocMatch ||
-            userMeta.crm ||
-            profile?.crm ||
-            cleanEmail.includes('medico') || 
-            cleanEmail.includes('cardio') || 
-            cleanEmail.includes('dr.') ||
-            cleanEmail.startsWith('dr')
-          ) {
-            finalRole = 'MEDICO_LAUDISTA';
-          } else if (profile?.tipo) {
-            finalRole = profile.tipo as UserRole;
-          } else if (selectedRole) {
-            finalRole = selectedRole;
-          }
-
-          const rawName = userMeta.nome_completo || profile?.nome_completo || localDocMatch?.name || (isMasterAdmin ? 'Administrador Geral' : cleanEmail.split('@')[0].toUpperCase());
-          const finalName = finalRole === 'MEDICO_LAUDISTA' ? formatDoctorDisplayName(rawName) : rawName;
-          const finalCrm = userMeta.crm || profile?.crm || localDocMatch?.crm;
-          const finalUf = userMeta.uf_crm || profile?.uf_crm || localDocMatch?.uf || (finalRole === 'MEDICO_LAUDISTA' ? 'SP' : undefined);
-          const finalSpecialty = userMeta.especialidade || profile?.especialidade || localDocMatch?.specialty || (finalRole === 'MEDICO_LAUDISTA' ? 'Cardiologia Clínica' : undefined);
-          const finalPhone = userMeta.telefone || profile?.telefone || localDocMatch?.phone;
           const savedClinics: any[] = (() => {
             try {
               return JSON.parse(localStorage.getItem('am_laudos_clinics_v2') || '[]');
@@ -228,6 +213,71 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
             (c.email && c.email.toLowerCase() === cleanEmail) || 
             c.id === (profile?.clinica_id || userMeta.clinica_id)
           );
+
+          const isDoctorAccount = Boolean(
+            userMeta.tipo === 'MEDICO_LAUDISTA' || 
+            profile?.tipo === 'MEDICO_LAUDISTA' || 
+            localDocMatch ||
+            userMeta.crm ||
+            profile?.crm ||
+            cleanEmail.includes('medico') || 
+            cleanEmail.includes('cardio') || 
+            cleanEmail.includes('dr.') ||
+            cleanEmail.startsWith('dr')
+          );
+
+          const isClinicAccount = Boolean(
+            userMeta.tipo === 'TECNICO_CLINICA' ||
+            profile?.tipo === 'TECNICO_CLINICA' ||
+            localClinicMatch ||
+            userMeta.clinica_id ||
+            profile?.clinica_id
+          );
+
+          let finalRole: UserRole = 'TECNICO_CLINICA';
+          if (isMasterAdmin) {
+            finalRole = 'ADMIN';
+          } else if (isDoctorAccount && !isClinicAccount) {
+            finalRole = 'MEDICO_LAUDISTA';
+          } else if (isClinicAccount) {
+            finalRole = 'TECNICO_CLINICA';
+          } else if (profile?.tipo) {
+            finalRole = profile.tipo as UserRole;
+          } else if (selectedRole) {
+            finalRole = selectedRole;
+          }
+
+          // Blindagem estrita de aba de login selecionada vs papel real do usuário
+          if (selectedRole && !isMasterAdmin) {
+            if (selectedRole === 'MEDICO_LAUDISTA' && finalRole === 'TECNICO_CLINICA') {
+              await supabase.auth.signOut();
+              return {
+                success: false,
+                error: 'Acesso negado: Esta conta pertence a uma Clínica/Posto e não tem permissão para acessar a Central de Laudos. Selecione a aba "Clínica / Posto".'
+              };
+            }
+            if (selectedRole === 'TECNICO_CLINICA' && finalRole === 'MEDICO_LAUDISTA') {
+              await supabase.auth.signOut();
+              return {
+                success: false,
+                error: 'Acesso negado: Esta conta pertence a um Médico Laudista e não tem permissão para acessar o Portal das Clínicas. Selecione a aba "Médico Laudista".'
+              };
+            }
+            if (selectedRole === 'ADMIN' && finalRole !== 'ADMIN') {
+              await supabase.auth.signOut();
+              return {
+                success: false,
+                error: 'Acesso negado: Esta conta não possui privilégios de Administrador. Selecione a aba correspondente ao seu perfil de acesso.'
+              };
+            }
+          }
+
+          const rawName = userMeta.nome_completo || profile?.nome_completo || localDocMatch?.name || (isMasterAdmin ? 'Administrador Geral' : cleanEmail.split('@')[0].toUpperCase());
+          const finalName = finalRole === 'MEDICO_LAUDISTA' ? formatDoctorDisplayName(rawName) : rawName;
+          const finalCrm = userMeta.crm || profile?.crm || localDocMatch?.crm;
+          const finalUf = userMeta.uf_crm || profile?.uf_crm || localDocMatch?.uf || (finalRole === 'MEDICO_LAUDISTA' ? 'SP' : undefined);
+          const finalSpecialty = userMeta.especialidade || profile?.especialidade || localDocMatch?.specialty || (finalRole === 'MEDICO_LAUDISTA' ? 'Cardiologia Clínica' : undefined);
+          const finalPhone = userMeta.telefone || profile?.telefone || localDocMatch?.phone;
 
           const finalClinicId = profile?.clinica_id || userMeta.clinica_id || localClinicMatch?.id || localDocMatch?.clinicId;
           const finalClinicName = profile?.clinicas?.nome || localClinicMatch?.name || (finalRole === 'TECNICO_CLINICA' ? finalName : localDocMatch?.clinicName);
@@ -284,6 +334,20 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
     const allUsers = [...localDoctors, ...DEMO_USERS];
     const matchedUser = allUsers.find(u => u.email?.toLowerCase() === cleanEmail);
     if (matchedUser) {
+      if (selectedRole && matchedUser.role !== 'ADMIN') {
+        if (selectedRole === 'MEDICO_LAUDISTA' && matchedUser.role === 'TECNICO_CLINICA') {
+          return {
+            success: false,
+            error: 'Acesso negado: Esta conta pertence a uma Clínica/Posto e não tem permissão para acessar a Central de Laudos. Selecione a aba "Clínica / Posto".'
+          };
+        }
+        if (selectedRole === 'TECNICO_CLINICA' && matchedUser.role === 'MEDICO_LAUDISTA') {
+          return {
+            success: false,
+            error: 'Acesso negado: Esta conta pertence a um Médico Laudista e não tem permissão para acessar o Portal das Clínicas. Selecione a aba "Médico Laudista".'
+          };
+        }
+      }
       setCurrentUser(matchedUser);
       return { success: true };
     }

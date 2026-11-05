@@ -61,8 +61,20 @@ function MainAppContent() {
     return INITIAL_EXAMS;
   });
 
-  // Visão padrão com base no perfil do usuário logado
-  const [currentView, setCurrentView] = useState<'laudista' | 'clinica' | 'admin'>('admin');
+  // Modo de visualização do Administrador (permite ao Admin alternar entre telas)
+  const [adminView, setAdminView] = useState<'admin' | 'laudista' | 'clinica'>('admin');
+
+  // Visão estrita e inegociável por perfil:
+  // - MEDICO_LAUDISTA: visualiza ESTRITAMENTE a Central de Laudos ('laudista')
+  // - TECNICO_CLINICA: visualiza ESTRITAMENTE o Portal das Clínicas ('clinica')
+  // - ADMIN: pode alternar conforme adminView
+  const currentView: 'laudista' | 'clinica' | 'admin' = (() => {
+    if (role === 'MEDICO_LAUDISTA') return 'laudista';
+    if (role === 'TECNICO_CLINICA') return 'clinica';
+    if (role === 'ADMIN') return adminView;
+    return 'laudista';
+  })();
+
   const [selectedExamToReport, setSelectedExamToReport] = useState<Exam | null>(null);
   const [viewingReportExam, setViewingReportExam] = useState<Exam | null>(null);
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -148,21 +160,18 @@ function MainAppContent() {
       });
   }, []);
 
-  // Ajustar visão inicial ao logar ou mudar de perfil
+  // Ajustar visão inicial do Admin ao logar
   useEffect(() => {
     if (!isAuthenticated) return;
     if (role === 'ADMIN') {
-      setCurrentView('admin');
-    } else if (role === 'TECNICO_CLINICA') {
-      setCurrentView('clinica');
-    } else {
-      setCurrentView('laudista');
+      setAdminView('admin');
     }
     setSelectedExamToReport(null);
   }, [role, isAuthenticated]);
 
-  // Handler de abertura de upload (com suporte a arquivos pré-selecionados)
+  // Handler de abertura de upload (com suporte a arquivos pré-selecionados) - NUNCA para Médicos
   const handleOpenUpload = (files?: File[]) => {
+    if (role === 'MEDICO_LAUDISTA') return; // Bloqueio estrito: Médicos não realizam envio de exames
     if (files && files.length > 0) {
       setInitialUploadFiles(files);
     } else {
@@ -218,8 +227,9 @@ function MainAppContent() {
     setDoctors(prev => prev.filter(d => d.id !== doctorId));
   };
 
-  // Abrir editor para laudar
+  // Abrir editor para laudar (Apenas Médicos ou Admin)
   const handleSelectExamToReport = (exam: Exam) => {
+    if (role !== 'MEDICO_LAUDISTA' && role !== 'ADMIN') return; // Bloqueio estrito: Clínicas não laudam exames
     const doctorLabel = currentUser?.role === 'MEDICO_LAUDISTA'
       ? `${currentUser.name} (CRM ${currentUser.crm}-${currentUser.uf})`
       : 'Dr. Fernando Albuquerque (CRM 112.540-SP)';
@@ -280,22 +290,18 @@ function MainAppContent() {
         currentView={currentView}
         onViewChange={(view) => {
           setSelectedExamToReport(null);
-          // Isolamento estrito de visualização por perfil
-          if (role === 'MEDICO_LAUDISTA') {
-            setCurrentView('laudista');
-          } else if (role === 'TECNICO_CLINICA') {
-            setCurrentView('clinica');
-          } else {
-            setCurrentView(view);
+          // Apenas o Administrador pode alternar entre telas de outros perfis
+          if (role === 'ADMIN') {
+            setAdminView(view);
           }
         }}
         exams={exams}
         onOpenUpload={() => handleOpenUpload()}
       />
 
-      {/* Conteúdo Principal */}
+      {/* Conteúdo Principal com Blindagem Estrita */}
       <main className="main-content-layout">
-        {selectedExamToReport ? (
+        {selectedExamToReport && (role === 'MEDICO_LAUDISTA' || role === 'ADMIN') ? (
           <ReportEditor
             exam={selectedExamToReport}
             onBackToQueue={() => setSelectedExamToReport(null)}
@@ -303,7 +309,8 @@ function MainAppContent() {
           />
         ) : (
           <>
-            {currentView === 'admin' && role === 'ADMIN' && (
+            {/* 1. Painel Administrativo: APENAS ADMIN */}
+            {role === 'ADMIN' && currentView === 'admin' && (
               <AdminDashboard
                 clinics={clinics}
                 exams={exams}
@@ -318,7 +325,8 @@ function MainAppContent() {
               />
             )}
 
-            {(currentView === 'laudista' || role === 'MEDICO_LAUDISTA') && role !== 'TECNICO_CLINICA' && (
+            {/* 2. Central de Laudos: APENAS Médicos Laudistas (e Admin em modo auditoria) */}
+            {(role === 'MEDICO_LAUDISTA' || (role === 'ADMIN' && currentView === 'laudista')) && (
               <DemandQueue
                 exams={exams}
                 onSelectExamToReport={handleSelectExamToReport}
@@ -326,10 +334,11 @@ function MainAppContent() {
               />
             )}
 
-            {(currentView === 'clinica' || role === 'TECNICO_CLINICA') && role !== 'MEDICO_LAUDISTA' && (
+            {/* 3. Portal das Clínicas: APENAS Clínicas (e Admin em modo auditoria) */}
+            {(role === 'TECNICO_CLINICA' || (role === 'ADMIN' && currentView === 'clinica')) && (
               <ClinicDashboard
                 exams={
-                  // Se for clínica, filtra rigorosamente apenas os exames da respectiva clínica
+                  // Se for clínica, filtra rigorosamente apenas os exames pertencentes à respectiva clínica logada
                   role === 'TECNICO_CLINICA'
                     ? exams.filter(e => {
                         if (currentUser?.clinicId && e.clinicId === currentUser.clinicId) return true;
