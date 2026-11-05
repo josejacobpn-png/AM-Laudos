@@ -20,8 +20,8 @@ export function generateLaudoPdf(exam: Exam, report: Report): jsPDF {
 
   doc.setTextColor(255, 255, 255);
   doc.setFont('helvetica', 'bold');
-  doc.setFontSize(14);
-  doc.text('AM LAUDOS | SERVIÇO DE TELEMEDICINA & TELEDIASTÓSTICO', margin + 6, y + 8);
+  doc.setFontSize(12.5);
+  doc.text('AM LAUDOS | SERVIÇO DE TELEMEDICINA & TELEDIAGNÓSTICO', margin + 6, y + 8);
 
   doc.setFont('helvetica', 'normal');
   doc.setFontSize(9);
