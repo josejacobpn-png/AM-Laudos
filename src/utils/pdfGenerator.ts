@@ -158,52 +158,9 @@ export function generateLaudoPdf(exam: Exam, report: Report): jsPDF {
 
   y += conclusionHeight + 8;
 
-  // 7. Miniatura do Traçado de ECG (Representação visual na folha)
-  doc.setFillColor(255, 245, 245);
-  doc.setDrawColor(252, 165, 165);
-  doc.setLineWidth(0.2);
-  doc.roundedRect(margin, y, pageWidth - (margin * 2), 24, 1, 1, 'FD');
-
-  // Desenhar linhas de grade simuladas na miniatura
-  for (let gx = margin; gx < pageWidth - margin; gx += 5) {
-    doc.line(gx, y, gx, y + 24);
-  }
-  for (let gy = y; gy < y + 24; gy += 4) {
-    doc.line(margin, gy, pageWidth - margin, gy);
-  }
-
-  // Traçado DII Longo ilustrativo no PDF
-  doc.setDrawColor(15, 23, 42);
-  doc.setLineWidth(0.5);
-  doc.setFont('helvetica', 'bold');
-  doc.setFontSize(7.5);
-  doc.setTextColor(220, 38, 38);
-  doc.text('REGISTRO DO RITMO (DERIVAÇÃO DII - VELOCIDADE 25 mm/s, SENSIBILIDADE 10 mm/mV)', margin + 3, y + 4);
-
-  // Traçado vetorial estilizado
-  let ecgX = margin + 10;
-  const baseY = y + 14;
-  while (ecgX < pageWidth - margin - 15) {
-    doc.line(ecgX, baseY, ecgX + 4, baseY); // baseline
-    doc.line(ecgX + 4, baseY, ecgX + 6, baseY - 1.2); // P
-    doc.line(ecgX + 6, baseY - 1.2, ecgX + 8, baseY);
-    doc.line(ecgX + 8, baseY, ecgX + 10, baseY); // PR
-    doc.line(ecgX + 10, baseY, ecgX + 11, baseY + 1.5); // Q
-    doc.line(ecgX + 11, baseY + 1.5, ecgX + 13, baseY - 7); // R spike
-    doc.line(ecgX + 13, baseY - 7, ecgX + 15, baseY + 2.5); // S
-    doc.line(ecgX + 15, baseY + 2.5, ecgX + 17, baseY); // J point
-    doc.line(ecgX + 17, baseY, ecgX + 20, baseY); // ST
-    doc.line(ecgX + 20, baseY, ecgX + 23, baseY - 2.2); // T
-    doc.line(ecgX + 23, baseY - 2.2, ecgX + 26, baseY);
-    doc.line(ecgX + 26, baseY, ecgX + 32, baseY); // Baseline
-    ecgX += 34;
-  }
-
-  y += 28;
-
-  // 8. Seção de Assinatura Digital do Laudo
+  // 7. Seção de Assinatura do Laudo
   const sig = report.signature;
-  const sigBoxY = Math.max(y, pageHeight - 48);
+  const sigBoxY = Math.max(y + 8, pageHeight - 48);
 
   doc.setFillColor(248, 250, 252);
   doc.setDrawColor(203, 213, 225);

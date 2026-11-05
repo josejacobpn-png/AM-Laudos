@@ -175,31 +175,7 @@ export const ReportViewModal: React.FC<ReportViewModalProps> = ({
               <p className="conclusion-paragraph">{report.conclusion}</p>
             </div>
 
-            {/* 7. Registro do Ritmo (Miniatura) */}
-            <div className="sheet-ecg-strip-box">
-              <div className="strip-header">
-                REGISTRO DO RITMO (DERIVAÇÃO DII - VELOCIDADE 25 mm/s, SENSIBILIDADE 10 mm/mV)
-              </div>
-              <div className="strip-grid-bg">
-                {/* SVG estilizado do traçado */}
-                <svg viewBox="0 0 800 60" width="100%" height="45">
-                  <path
-                    d="M0,30 L30,30 L35,24 L40,30 L50,30 L53,34 L58,4 L62,42 L66,30 L74,30 L80,22 L86,30 L115,30 
-                       L145,30 L150,24 L155,30 L165,30 L168,34 L173,4 L177,42 L181,30 L189,30 L195,22 L201,30 L230,30
-                       L260,30 L265,24 L270,30 L280,30 L283,34 L288,4 L292,42 L296,30 L304,30 L310,22 L316,30 L345,30
-                       L375,30 L380,24 L385,30 L395,30 L398,34 L403,4 L407,42 L411,30 L419,30 L425,22 L431,30 L460,30
-                       L490,30 L495,24 L500,30 L510,30 L513,34 L518,4 L522,42 L526,30 L534,30 L540,22 L546,30 L575,30
-                       L605,30 L610,24 L615,30 L625,30 L628,34 L633,4 L637,42 L641,30 L649,30 L655,22 L661,30 L690,30
-                       L720,30 L725,24 L730,30 L740,30 L743,34 L748,4 L752,42 L756,30 L764,30 L770,22 L776,30 L800,30"
-                    fill="none"
-                    stroke="#dc2626"
-                    strokeWidth="1.6"
-                  />
-                </svg>
-              </div>
-            </div>
-
-            {/* 8. Bloco de Assinatura Digital */}
+            {/* 7. Bloco de Assinatura do Laudo */}
             <div className="sheet-signature-box">
               <div className="icp-brasil-seal-card">
                 <div className="seal-top">AM LAUDOS</div>
