@@ -565,3 +565,40 @@ DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
+
+-- ------------------------------------------------------------------------------
+-- 13. SINCRONIZAÇÃO RETROATIVA DE USUÁRIOS (auth.users -> public.perfis)
+-- Executa a inserção imediata de todos os usuários já existentes no auth.users
+-- ------------------------------------------------------------------------------
+INSERT INTO public.perfis (id, nome_completo, tipo, crm, uf_crm, especialidade, clinica_id, created_at, updated_at)
+SELECT 
+  u.id,
+  COALESCE(u.raw_user_meta_data->>'nome_completo', split_part(u.email, '@', 1)),
+  CASE 
+    WHEN u.email = 'g2autodev@gmail.com' OR u.email ILIKE '%admin%' OR u.raw_user_meta_data->>'tipo' = 'ADMIN' THEN 'ADMIN'::tipo_usuario
+    WHEN u.raw_user_meta_data->>'tipo' = 'MEDICO_LAUDISTA' 
+         OR (u.raw_user_meta_data->>'crm') IS NOT NULL 
+         OR u.email ILIKE '%medico%' 
+         OR u.email ILIKE '%cardio%' 
+         OR u.email ILIKE '%dr%' 
+         OR u.raw_user_meta_data->>'nome_completo' ILIKE '%dr%' 
+         OR u.raw_user_meta_data->>'nome_completo' ILIKE '%giovana%' THEN 'MEDICO_LAUDISTA'::tipo_usuario
+    ELSE 'TECNICO_CLINICA'::tipo_usuario
+  END,
+  COALESCE(u.raw_user_meta_data->>'crm', '00000'),
+  COALESCE(u.raw_user_meta_data->>'uf_crm', 'SP'),
+  COALESCE(u.raw_user_meta_data->>'especialidade', 'Cardiologia Clínica e Eletrofisiologia'),
+  NULLIF(u.raw_user_meta_data->>'clinica_id', '')::UUID,
+  u.created_at,
+  NOW()
+FROM auth.users u
+ON CONFLICT (id) DO UPDATE SET
+  nome_completo = COALESCE(EXCLUDED.nome_completo, public.perfis.nome_completo),
+  tipo = CASE 
+    WHEN EXCLUDED.tipo = 'MEDICO_LAUDISTA' THEN 'MEDICO_LAUDISTA'::tipo_usuario
+    ELSE public.perfis.tipo 
+  END,
+  crm = COALESCE(EXCLUDED.crm, public.perfis.crm),
+  uf_crm = COALESCE(EXCLUDED.uf_crm, public.perfis.uf_crm),
+  especialidade = COALESCE(EXCLUDED.especialidade, public.perfis.especialidade),
+  updated_at = NOW();

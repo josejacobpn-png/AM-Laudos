@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { 
   Building2, 
   Stethoscope, 
@@ -10,7 +10,8 @@ import {
   AlertTriangle,
   Layers,
   Pencil,
-  Trash2
+  Trash2,
+  RefreshCw
 } from 'lucide-react';
 import type { Clinic, Exam, UserProfile } from '../../types';
 import { DEMO_USERS } from '../../data/mockUsers';
@@ -104,44 +105,57 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [localDoctors, setLocalDoctors] = useState<UserProfile[]>(() => {
     return DEMO_USERS.filter(u => u.role === 'MEDICO_LAUDISTA');
   });
+  const [isRefreshingDoctors, setIsRefreshingDoctors] = useState(false);
 
-  // Buscar médicos atualizados direto do Supabase ao abrir a aba
-  useEffect(() => {
+  // Buscar médicos atualizados direto do Supabase ao abrir a aba ou ao clicar em Atualizar
+  const fetchDoctors = useCallback(async () => {
     if (!isSupabaseConfigured || !supabase) return;
-    supabase
-      .from('perfis')
-      .select('*')
-      .then(({ data, error }) => {
-        if (!error && data && data.length > 0) {
-          const doctorRows = data.filter((p: any) => p.tipo === 'MEDICO_LAUDISTA' || Boolean(p.crm));
-          const savedDocs: UserProfile[] = (() => {
-            try {
-              return JSON.parse(localStorage.getItem('am_laudos_doctors_v2') || '[]');
-            } catch {
-              return [];
-            }
-          })();
+    setIsRefreshingDoctors(true);
+    try {
+      const { data, error } = await supabase
+        .from('perfis')
+        .select('*');
 
-          const remoteDocs: UserProfile[] = doctorRows.map((p: any) => {
-            const matchedSaved = savedDocs.find(s => s.id === p.id || (s.crm && s.crm === p.crm));
-            return {
-              id: p.id,
-              name: p.nome_completo,
-              email: matchedSaved?.email || p.email || 'medico@amlaudos.com.br',
-              role: 'MEDICO_LAUDISTA' as const,
-              crm: p.crm || '',
-              uf: p.uf_crm || 'SP',
-              specialty: p.especialidade || 'Cardiologia Clínica e Eletrofisiologia',
-              phone: p.telefone || matchedSaved?.phone
-            };
-          });
-
-          if (remoteDocs.length > 0) {
-            setLocalDoctors(remoteDocs);
+      if (!error && data && data.length > 0) {
+        const doctorRows = data.filter((p: any) => p.tipo === 'MEDICO_LAUDISTA' || Boolean(p.crm));
+        const savedDocs: UserProfile[] = (() => {
+          try {
+            return JSON.parse(localStorage.getItem('am_laudos_doctors_v2') || '[]');
+          } catch {
+            return [];
           }
+        })();
+
+        const remoteDocs: UserProfile[] = doctorRows.map((p: any) => {
+          const matchedSaved = savedDocs.find(s => s.id === p.id || (s.crm && s.crm === p.crm));
+          return {
+            id: p.id,
+            name: p.nome_completo,
+            email: matchedSaved?.email || p.email || 'medico@amlaudos.com.br',
+            role: 'MEDICO_LAUDISTA' as const,
+            crm: p.crm || '',
+            uf: p.uf_crm || 'SP',
+            specialty: p.especialidade || 'Cardiologia Clínica e Eletrofisiologia',
+            phone: p.telefone || matchedSaved?.phone
+          };
+        });
+
+        if (remoteDocs.length > 0) {
+          setLocalDoctors(remoteDocs);
         }
-      });
-  }, [activeTab]);
+      }
+    } catch (err) {
+      console.warn('Erro ao atualizar lista de médicos:', err);
+    } finally {
+      setIsRefreshingDoctors(false);
+    }
+  }, []);
+
+  useEffect(() => {
+    if (activeTab === 'medicos') {
+      fetchDoctors();
+    }
+  }, [activeTab, fetchDoctors]);
 
   // Unificar médicos das props, do estado local e do localStorage sem duplicatas
   const savedLocalStorageDoctors: UserProfile[] = (() => {
@@ -999,17 +1013,35 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               />
             </div>
 
-            <button
-              type="button"
-              className="btn-add-primary"
-              onClick={() => {
-                setDoctorFormError('');
-                setIsNewDoctorModalOpen(true);
-              }}
-            >
-              <Plus size={17} />
-              <span>Cadastrar Novo Médico Laudista</span>
-            </button>
+            <div style={{ display: 'flex', gap: '0.6rem', alignItems: 'center', flexWrap: 'wrap' }}>
+              <button
+                type="button"
+                className="btn-add-primary"
+                style={{
+                  backgroundColor: 'var(--card-bg, #ffffff)',
+                  color: 'var(--text-main, #1e293b)',
+                  border: '1px solid var(--border, #cbd5e1)'
+                }}
+                onClick={() => fetchDoctors()}
+                disabled={isRefreshingDoctors}
+                title="Recarregar lista de médicos direto do banco de dados"
+              >
+                <RefreshCw size={15} className={isRefreshingDoctors ? 'animate-spin' : ''} />
+                <span>{isRefreshingDoctors ? 'Atualizando...' : 'Atualizar Lista'}</span>
+              </button>
+
+              <button
+                type="button"
+                className="btn-add-primary"
+                onClick={() => {
+                  setDoctorFormError('');
+                  setIsNewDoctorModalOpen(true);
+                }}
+              >
+                <Plus size={17} />
+                <span>Cadastrar Novo Médico Laudista</span>
+              </button>
+            </div>
           </div>
 
           <div className="table-responsive">
