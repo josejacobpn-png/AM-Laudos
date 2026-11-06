@@ -106,6 +106,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     return DEMO_USERS.filter(u => u.role === 'MEDICO_LAUDISTA');
   });
   const [isRefreshingDoctors, setIsRefreshingDoctors] = useState(false);
+  const [refreshSuccessMessage, setRefreshSuccessMessage] = useState<string | null>(null);
 
   // Buscar médicos atualizados direto do Supabase ao abrir a aba ou ao clicar em Atualizar
   const fetchDoctors = useCallback(async () => {
@@ -117,7 +118,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         .select('*');
 
       if (!error && data && data.length > 0) {
-        const doctorRows = data.filter((p: any) => p.tipo === 'MEDICO_LAUDISTA' || Boolean(p.crm));
+        const doctorRows = data.filter((p: any) => p.tipo === 'MEDICO_LAUDISTA' || (Boolean(p.crm) && p.tipo !== 'ADMIN' && p.tipo !== 'TECNICO_CLINICA'));
         const savedDocs: UserProfile[] = (() => {
           try {
             return JSON.parse(localStorage.getItem('am_laudos_doctors_v2') || '[]');
@@ -130,7 +131,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           const matchedSaved = savedDocs.find(s => s.id === p.id || (s.crm && s.crm === p.crm));
           return {
             id: p.id,
-            name: p.nome_completo,
+            name: formatDoctorDisplayName(p.nome_completo),
             email: matchedSaved?.email || p.email || 'medico@amlaudos.com.br',
             role: 'MEDICO_LAUDISTA' as const,
             crm: p.crm || '',
@@ -142,6 +143,13 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         if (remoteDocs.length > 0) {
           setLocalDoctors(remoteDocs);
+          try {
+            localStorage.setItem('am_laudos_doctors_v2', JSON.stringify(remoteDocs));
+          } catch (e) {
+            console.warn('Erro ao salvar médicos no localStorage:', e);
+          }
+          setRefreshSuccessMessage(`Lista atualizada! ${remoteDocs.length} médico(s) sincronizado(s) com sucesso.`);
+          setTimeout(() => setRefreshSuccessMessage(null), 4000);
         }
       }
     } catch (err) {
@@ -168,7 +176,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
   const combinedDoctorsMap = new Map<string, UserProfile>();
 
-  localDoctors.forEach(d => {
+  (doctors || []).forEach(d => {
     const key = d.crm ? `crm-${d.crm}-${d.uf || ''}` : d.email ? `email-${d.email.toLowerCase()}` : d.id;
     combinedDoctorsMap.set(key, d);
   });
@@ -178,7 +186,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     combinedDoctorsMap.set(key, d);
   });
 
-  (doctors || []).forEach(d => {
+  localDoctors.forEach(d => {
     const key = d.crm ? `crm-${d.crm}-${d.uf || ''}` : d.email ? `email-${d.email.toLowerCase()}` : d.id;
     combinedDoctorsMap.set(key, d);
   });
@@ -1043,6 +1051,28 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               </button>
             </div>
           </div>
+
+          {refreshSuccessMessage && (
+            <div 
+              className="animate-fade-in"
+              style={{
+                backgroundColor: '#ecfdf5',
+                color: '#065f46',
+                border: '1px solid #a7f3d0',
+                padding: '0.65rem 1rem',
+                borderRadius: 'var(--radius-sm)',
+                marginBottom: '1rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem',
+                fontSize: '0.85rem',
+                fontWeight: 600
+              }}
+            >
+              <CheckCircle size={16} color="#059669" />
+              <span>{refreshSuccessMessage}</span>
+            </div>
+          )}
 
           <div className="table-responsive">
             <table className="custom-table">

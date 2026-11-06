@@ -12,6 +12,7 @@ import { ReportEditor } from './components/Editor/ReportEditor';
 import { ExamUploadModal } from './components/ClinicPortal/ExamUploadModal';
 import { ReportViewModal } from './components/ReportViewModal';
 import { generateLaudoPdf } from './utils/pdfGenerator';
+import { formatDoctorDisplayName } from './utils/cryptoSim';
 import { supabase, isSupabaseConfigured } from './services/supabase';
 import './App.css';
 
@@ -133,7 +134,7 @@ function MainAppContent() {
       .select('*')
       .then(({ data, error }) => {
         if (!error && data && data.length > 0) {
-          const doctorRows = data.filter((p: any) => p.tipo === 'MEDICO_LAUDISTA' || Boolean(p.crm));
+          const doctorRows = data.filter((p: any) => p.tipo === 'MEDICO_LAUDISTA' || (Boolean(p.crm) && p.tipo !== 'ADMIN' && p.tipo !== 'TECNICO_CLINICA'));
 
           const savedDocs: UserProfile[] = (() => {
             try {
@@ -147,7 +148,7 @@ function MainAppContent() {
             const matchedSaved = savedDocs.find(s => s.id === p.id || (s.crm && s.crm === p.crm));
             return {
               id: p.id,
-              name: p.nome_completo,
+              name: formatDoctorDisplayName(p.nome_completo),
               email: matchedSaved?.email || p.email || 'medico@amlaudos.com.br',
               role: 'MEDICO_LAUDISTA' as const,
               crm: p.crm || '',
@@ -167,6 +168,11 @@ function MainAppContent() {
 
           if (merged.length > 0) {
             setDoctors(merged);
+            try {
+              localStorage.setItem('am_laudos_doctors_v2', JSON.stringify(merged));
+            } catch (e) {
+              console.warn('Erro ao sincronizar médicos no localStorage:', e);
+            }
           }
         }
       });
