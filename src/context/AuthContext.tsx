@@ -44,10 +44,10 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const userMeta = session.user.user_metadata || {};
         const isMasterAdmin = userEmail === 'g2autodev@gmail.com' || userEmail.includes('admin') || userMeta.tipo === 'ADMIN';
 
-        // 1. Buscar perfil no banco
+        // 1. Buscar perfil no banco (apenas campos necessários para autenticação e sessão)
         let { data: profile } = await client
           .from('perfis')
-          .select('*, clinicas(nome)')
+          .select('id, nome_completo, tipo, clinica_id, crm, uf_crm, rqe, especialidade, telefone, clinicas(nome)')
           .eq('id', session.user.id)
           .maybeSingle();
 
@@ -119,7 +119,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         const finalPhone = userMeta.telefone || profile?.telefone || localDocMatch?.phone;
 
         const finalClinicId = profile?.clinica_id || userMeta.clinica_id || localClinicMatch?.id || localDocMatch?.clinicId;
-        const finalClinicName = profile?.clinicas?.nome || localClinicMatch?.name || (finalRole === 'TECNICO_CLINICA' ? finalName : localDocMatch?.clinicName);
+        const clinicObj = Array.isArray(profile?.clinicas) ? profile.clinicas[0] : (profile?.clinicas as { nome?: string } | undefined);
+        const finalClinicName = clinicObj?.nome || localClinicMatch?.name || (finalRole === 'TECNICO_CLINICA' ? finalName : localDocMatch?.clinicName);
 
         // Auto-sincronizar / reparar perfil no Supabase se for médico e a tabela perfis estiver incompleta
         if (finalRole === 'MEDICO_LAUDISTA' && (!profile || profile.tipo !== 'MEDICO_LAUDISTA' || !profile.crm)) {
@@ -183,7 +184,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
 
           let { data: profile } = await supabase
             .from('perfis')
-            .select('*, clinicas(nome)')
+            .select('id, nome_completo, tipo, clinica_id, crm, uf_crm, rqe, especialidade, telefone, clinicas(nome)')
             .eq('id', data.user.id)
             .maybeSingle();
 
@@ -280,7 +281,8 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
           const finalPhone = userMeta.telefone || profile?.telefone || localDocMatch?.phone;
 
           const finalClinicId = profile?.clinica_id || userMeta.clinica_id || localClinicMatch?.id || localDocMatch?.clinicId;
-          const finalClinicName = profile?.clinicas?.nome || localClinicMatch?.name || (finalRole === 'TECNICO_CLINICA' ? finalName : localDocMatch?.clinicName);
+          const clinicObj = Array.isArray(profile?.clinicas) ? profile.clinicas[0] : (profile?.clinicas as { nome?: string } | undefined);
+          const finalClinicName = clinicObj?.nome || localClinicMatch?.name || (finalRole === 'TECNICO_CLINICA' ? finalName : localDocMatch?.clinicName);
 
           if (finalRole === 'MEDICO_LAUDISTA' && (!profile || profile.tipo !== 'MEDICO_LAUDISTA' || !profile.crm)) {
             try {

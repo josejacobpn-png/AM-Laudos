@@ -108,10 +108,11 @@ function MainAppContent() {
   useEffect(() => {
     if (!isSupabaseConfigured || !supabase) return;
 
-    // Carregar clínicas do banco
+    // Carregar clínicas do banco (apenas colunas necessárias para economizar banda do Supabase)
     supabase
       .from('clinicas')
-      .select('*')
+      .select('id, nome, cnes, cidade, estado, telefone, email, ativo')
+      .order('nome', { ascending: true })
       .then(({ data, error }) => {
         if (!error && data && data.length > 0) {
           const remoteClinics: Clinic[] = data.map((c: any) => ({
@@ -128,10 +129,11 @@ function MainAppContent() {
         }
       });
 
-    // Carregar médicos cadastrados do banco (busca por tipo ou presença de CRM registrado)
+    // Carregar médicos cadastrados do banco (apenas colunas necessárias para minimizar tráfego)
     supabase
       .from('perfis')
-      .select('*')
+      .select('id, nome_completo, tipo, crm, uf_crm, especialidade, telefone, ativo')
+      .order('nome_completo', { ascending: true })
       .then(({ data, error }) => {
         if (!error && data && data.length > 0) {
           const doctorRows = data.filter((p: any) => p.tipo === 'MEDICO_LAUDISTA' || (Boolean(p.crm) && p.tipo !== 'ADMIN' && p.tipo !== 'TECNICO_CLINICA'));

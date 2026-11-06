@@ -115,7 +115,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     try {
       const { data, error } = await supabase
         .from('perfis')
-        .select('*');
+        .select('id, nome_completo, tipo, crm, uf_crm, especialidade, telefone, ativo')
+        .order('nome_completo', { ascending: true });
 
       if (!error && data && data.length > 0) {
         const doctorRows = data.filter((p: any) => p.tipo === 'MEDICO_LAUDISTA' || (Boolean(p.crm) && p.tipo !== 'ADMIN' && p.tipo !== 'TECNICO_CLINICA'));
