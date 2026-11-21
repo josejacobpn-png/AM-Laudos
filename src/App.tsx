@@ -11,7 +11,7 @@ import { AdminDashboard } from './components/AdminPortal/AdminDashboard';
 import { ReportEditor } from './components/Editor/ReportEditor';
 import { ExamUploadModal } from './components/ClinicPortal/ExamUploadModal';
 import { ReportViewModal } from './components/ReportViewModal';
-import { generateLaudoPdf } from './utils/pdfGenerator';
+import { generateLaudoPdf, downloadCompleteLaudoPdf } from './utils/pdfGenerator';
 import { formatDoctorDisplayName } from './utils/cryptoSim';
 import { supabase, isSupabaseConfigured } from './services/supabase';
 import './App.css';
@@ -286,11 +286,16 @@ function MainAppContent() {
     }
   };
 
-  // Download do PDF oficial
-  const handleDownloadPdf = (exam: Exam) => {
+  // Download do PDF oficial completo com o traçado original do exame
+  const handleDownloadPdf = async (exam: Exam) => {
     if (!exam.report) return;
-    const doc = generateLaudoPdf(exam, exam.report);
-    doc.save(`AM_Laudos_${exam.patient.name.replace(/\s+/g, '_')}_${exam.protocolNumber}.pdf`);
+    try {
+      await downloadCompleteLaudoPdf(exam, exam.report);
+    } catch (err) {
+      console.warn('Fallback para download padrão jsPDF:', err);
+      const doc = generateLaudoPdf(exam, exam.report);
+      doc.save(`AM_Laudos_${exam.patient.name.replace(/\s+/g, '_')}_${exam.protocolNumber}.pdf`);
+    }
   };
 
   // Visualizar laudo

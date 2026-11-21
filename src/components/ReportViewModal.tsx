@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import { 
   X, 
   Download, 
@@ -6,11 +6,13 @@ import {
   Share2, 
   CheckCircle, 
   FileText, 
-  Copy
+  Copy,
+  Activity
 } from 'lucide-react';
 import type { Exam } from '../types';
 import { formatDateTimeBR, formatDoctorDisplayName } from '../utils/cryptoSim';
-import { generateLaudoPdf } from '../utils/pdfGenerator';
+import { generateLaudoPdf, downloadCompleteLaudoPdf } from '../utils/pdfGenerator';
+import { getExamFile, dataUrlToBlobUrl } from '../utils/fileStorage';
 import logoImg from '../assets/logo-amlaudos.jpg';
 
 interface ReportViewModalProps {
@@ -25,15 +27,52 @@ export const ReportViewModal: React.FC<ReportViewModalProps> = ({
   exam
 }) => {
   const [copiedHash, setCopiedHash] = useState(false);
+  const [isDownloading, setIsDownloading] = useState(false);
+  const [examFileUrl, setExamFileUrl] = useState<string | null>(null);
+  const [isExamImage, setIsExamImage] = useState<boolean>(false);
+
+  useEffect(() => {
+    if (!exam) return;
+
+    if (exam.fileDataUrl || exam.fileUrl) {
+      const url = exam.fileDataUrl || exam.fileUrl || '';
+      setExamFileUrl(url);
+      setIsExamImage(
+        exam.fileType === 'IMAGE' || 
+        Boolean(exam.fileName?.match(/\.(png|jpe?g|webp|bmp|gif)$/i)) || 
+        url.startsWith('data:image/')
+      );
+      return;
+    }
+
+    getExamFile(exam.id, exam.fileName).then(stored => {
+      if (stored?.dataUrl) {
+        setExamFileUrl(stored.dataUrl);
+        setIsExamImage(
+          exam.fileType === 'IMAGE' || 
+          Boolean(exam.fileName?.match(/\.(png|jpe?g|webp|bmp|gif)$/i)) || 
+          stored.dataUrl.startsWith('data:image/')
+        );
+      }
+    });
+  }, [exam]);
 
   if (!isOpen || !exam || !exam.report) return null;
 
   const report = exam.report;
   const sig = report.signature;
 
-  const handleDownloadPdf = () => {
-    const doc = generateLaudoPdf(exam, report);
-    doc.save(`AM_Laudo_${exam.patient.name.replace(/\s+/g, '_')}_${exam.protocolNumber}.pdf`);
+  const handleDownloadPdf = async () => {
+    setIsDownloading(true);
+    try {
+      await downloadCompleteLaudoPdf(exam, report);
+    } catch (err) {
+      console.warn('Fallback para download padrão jsPDF:', err);
+      const doc = generateLaudoPdf(exam, report);
+      doc.save(`AM_Laudo_${exam.patient.name.replace(/\s+/g, '_')}_${exam.protocolNumber}.pdf`);
+    } finally {
+      setIsDownloading(false);
+    }
   };
 
   const handlePrint = () => {
@@ -74,9 +113,9 @@ export const ReportViewModal: React.FC<ReportViewModalProps> = ({
               <span>Imprimir</span>
             </button>
 
-            <button className="btn-modal-action download" onClick={handleDownloadPdf} title="Baixar PDF de alta resolução">
+            <button className="btn-modal-action download" onClick={handleDownloadPdf} disabled={isDownloading} title="Baixar laudo completo com traçado em PDF">
               <Download size={16} />
-              <span>Baixar PDF</span>
+              <span>{isDownloading ? 'Gerando Laudo...' : 'Baixar PDF'}</span>
             </button>
 
             <button className="btn-modal-action share" onClick={handleShareWhatsApp} title="Enviar via WhatsApp">
@@ -229,6 +268,62 @@ export const ReportViewModal: React.FC<ReportViewModalProps> = ({
             {/* Rodapé Legal */}
             <div className="sheet-footer">
               <small>Documento eletrônico com validade jurídica garantida por assinatura digital conforme MP nº 2.200-2/2001 e Resolução CFM 2.314/2022. Guarda obrigatória de prontuário por 20 anos.</small>
+            </div>
+          </div>
+
+          {/* Folha 2: Traçado Eletrocardiográfico Original (Exame Inicial Anexado) */}
+          <div className="report-a4-sheet" style={{ marginTop: '2.5rem' }}>
+            <div className="sheet-top-header" style={{ marginBottom: '1.2rem' }}>
+              <div className="sheet-brand-wrap">
+                <img src={logoImg} alt="AM Laudos" className="sheet-header-logo-img" />
+              </div>
+              <div className="sheet-meta-box">
+                <div><strong>Protocolo:</strong> {exam.protocolNumber}</div>
+                <div><strong>Exame Original:</strong> {exam.fileName}</div>
+                <div><strong>Paciente:</strong> {exam.patient.name}</div>
+              </div>
+            </div>
+
+            <div className="sheet-exam-title" style={{ marginBottom: '1.2rem' }}>
+              <h3>REGISTRO ELETROCARDIOGRÁFICO ORIGINAL (TRAÇADO ANEXADO)</h3>
+            </div>
+
+            <div 
+              className="original-trace-box" 
+              style={{ 
+                minHeight: '480px', 
+                display: 'flex', 
+                justifyContent: 'center', 
+                alignItems: 'center', 
+                backgroundColor: '#ffffff', 
+                border: '1px solid #cbd5e1', 
+                borderRadius: '4px', 
+                overflow: 'hidden' 
+              }}
+            >
+              {isExamImage && examFileUrl ? (
+                <img 
+                  src={examFileUrl} 
+                  alt={`Traçado do Exame ${exam.fileName}`} 
+                  style={{ maxWidth: '100%', maxHeight: '720px', objectFit: 'contain' }}
+                />
+              ) : examFileUrl ? (
+                <iframe
+                  src={examFileUrl.startsWith('data:') ? dataUrlToBlobUrl(examFileUrl) : examFileUrl}
+                  title="Traçado do Exame em PDF"
+                  style={{ width: '100%', height: '720px', border: 'none' }}
+                />
+              ) : (
+                <div style={{ padding: '3.5rem 2rem', textAlign: 'center', color: '#64748b' }}>
+                  <Activity size={44} style={{ color: '#0284c7', marginBottom: '0.75rem', opacity: 0.8 }} />
+                  <p style={{ fontWeight: 600, fontSize: '0.95rem' }}>Arquivo do traçado original: {exam.fileName}</p>
+                  <small>O exame original anexado pela clínica solicitante ({exam.clinicName}) está integrado e é mesclado diretamente no download do PDF.</small>
+                </div>
+              )}
+            </div>
+
+            <div className="sheet-footer" style={{ marginTop: '1.5rem' }}>
+              <small>Documento original emitido pela unidade solicitante ({exam.clinicName}) sob protocolo {exam.protocolNumber}. Guarda legal integrada ao prontuário médico.</small>
             </div>
           </div>
         </div>
