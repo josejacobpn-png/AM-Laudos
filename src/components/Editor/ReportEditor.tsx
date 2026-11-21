@@ -6,13 +6,15 @@ import {
   CheckCircle, 
   Activity, 
   Stethoscope,
-  Columns
+  Columns,
+  ListFilter
 } from 'lucide-react';
 import type { Exam, Report, DigitalSignature } from '../../types';
 import { EcgViewer } from './EcgViewer';
 import { DigitalSignatureModal } from './DigitalSignatureModal';
 import { useAuth } from '../../context/AuthContext';
 import { formatDoctorDisplayName } from '../../utils/cryptoSim';
+import { ECG_TEMPLATES } from '../../data/ecgTemplates';
 
 interface ReportEditorProps {
   exam: Exam;
@@ -34,6 +36,28 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
   const [qrsAxis, setQrsAxis] = useState(exam.report?.qrsAxis || '');
   const [findings, setFindings] = useState(exam.report?.findings || '');
   const [conclusion, setConclusion] = useState(exam.report?.conclusion || '');
+  const [selectedTemplateCode, setSelectedTemplateCode] = useState<string>('');
+  const [templateSearchTerm, setTemplateSearchTerm] = useState<string>('');
+
+  const handleSelectTemplate = (e: React.ChangeEvent<HTMLSelectElement>) => {
+    const code = e.target.value;
+    setSelectedTemplateCode(code);
+    if (!code) return;
+    const tmpl = ECG_TEMPLATES.find(t => t.code === code);
+    if (tmpl) {
+      setFindings(tmpl.description);
+      setConclusion(tmpl.conclusion);
+    }
+  };
+
+  const filteredTemplates = templateSearchTerm.trim()
+    ? ECG_TEMPLATES.filter(t => 
+        t.code.includes(templateSearchTerm.trim()) ||
+        t.title.toLowerCase().includes(templateSearchTerm.toLowerCase()) ||
+        t.description.toLowerCase().includes(templateSearchTerm.toLowerCase()) ||
+        t.conclusion.toLowerCase().includes(templateSearchTerm.toLowerCase())
+      )
+    : ECG_TEMPLATES;
 
   const { currentUser } = useAuth();
 
@@ -259,15 +283,69 @@ export const ReportEditor: React.FC<ReportEditorProps> = ({
               </div>
             </div>
 
-            {/* Descrição Detalhada dos Achados */}
+            {/* Descrição Detalhada dos Achados com Lista de Modelos Prontos */}
             <div className="form-group">
-              <label>Descrição dos Achados Eletrocardiográficos</label>
+              <div style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', marginBottom: '0.45rem', flexWrap: 'wrap', gap: '0.5rem' }}>
+                <label style={{ margin: 0, fontWeight: 700, fontSize: '0.88rem' }}>
+                  Descrição dos Achados Eletrocardiográficos
+                </label>
+
+                <div style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', flexWrap: 'wrap' }}>
+                  <span style={{ fontSize: '0.78rem', fontWeight: 600, color: 'var(--primary)', display: 'inline-flex', alignItems: 'center', gap: '0.25rem' }}>
+                    <ListFilter size={14} />
+                    <span>Descrições Prontas:</span>
+                  </span>
+
+                  <input
+                    type="text"
+                    placeholder="Filtrar por nº ou nome..."
+                    value={templateSearchTerm}
+                    onChange={(e) => setTemplateSearchTerm(e.target.value)}
+                    style={{
+                      padding: '0.35rem 0.55rem',
+                      fontSize: '0.78rem',
+                      borderRadius: 'var(--radius-sm)',
+                      border: '1px solid var(--border-hover, #cbd5e1)',
+                      width: '145px',
+                      backgroundColor: 'var(--bg-app, #f8fafc)'
+                    }}
+                    title="Digite um número ou palavra-chave para filtrar a lista"
+                  />
+
+                  <select
+                    value={selectedTemplateCode}
+                    onChange={handleSelectTemplate}
+                    className="form-control"
+                    style={{
+                      width: 'auto',
+                      maxWidth: '320px',
+                      padding: '0.35rem 0.55rem',
+                      fontSize: '0.8rem',
+                      fontWeight: 600,
+                      borderRadius: 'var(--radius-sm)',
+                      cursor: 'pointer',
+                      border: '1.5px solid #0284c7',
+                      backgroundColor: '#f0f9ff',
+                      color: '#0369a1'
+                    }}
+                    title="Escolha um modelo de laudo predefinido para preencher automaticamente"
+                  >
+                    <option value="">-- Selecione uma Descrição Pronta ({filteredTemplates.length}) --</option>
+                    {filteredTemplates.map(t => (
+                      <option key={t.code} value={t.code}>
+                        {t.code}. {t.title}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+
               <textarea
                 rows={4}
                 value={findings}
                 onChange={(e) => setFindings(e.target.value)}
                 className="form-control editor-textarea"
-                placeholder="Descreva morfologia de onda P, complexo QRS, repolarização ventricular, segmento ST e onda T..."
+                placeholder="Selecione uma descrição pronta acima ou redija livremente os achados eletrocardiográficos..."
               />
             </div>
 
