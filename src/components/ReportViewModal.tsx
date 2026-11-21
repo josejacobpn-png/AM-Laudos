@@ -272,7 +272,7 @@ export const ReportViewModal: React.FC<ReportViewModalProps> = ({
           </div>
 
           {/* Folha 2: Traçado Eletrocardiográfico Original (Exame Inicial Anexado) */}
-          <div className="report-a4-sheet" style={{ marginTop: '2.5rem' }}>
+          <div className="report-a4-sheet">
             <div className="sheet-top-header" style={{ marginBottom: '1.2rem' }}>
               <div className="sheet-brand-wrap">
                 <img src={logoImg} alt="AM Laudos" className="sheet-header-logo-img" />
