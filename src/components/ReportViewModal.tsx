@@ -66,7 +66,10 @@ export const ReportViewModal: React.FC<ReportViewModalProps> = ({
     setIsDownloading(true);
     try {
       await downloadCompleteLaudoPdf(exam, report);
-    } catch (err) {
+    } catch (err: any) {
+      if (err && (err.name === 'AbortError' || err.code === 20)) {
+        return;
+      }
       console.warn('Fallback para download padrão jsPDF:', err);
       const doc = generateLaudoPdf(exam, report);
       doc.save(`AM_Laudo_${exam.patient.name.replace(/\s+/g, '_')}_${exam.protocolNumber}.pdf`);

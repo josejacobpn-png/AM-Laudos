@@ -308,8 +308,10 @@ export async function generateCompleteLaudoPdfBytes(exam: Exam, report: Report):
 }
 
 /**
- * Dispara o download automático no navegador do PDF final completo
- * (Laudo Oficial + Traçado Original do Exame).
+ * Salva o PDF final completo (Laudo Oficial + Traçado Original do Exame).
+ * Abre a janela nativa do sistema ("Salvar Como...") para o usuário escolher
+ * a pasta de destino (Documentos, Área de Trabalho, Pen Drive, etc.) e o nome do arquivo.
+ * Caso o navegador não suporte a File System Access API ou haja bloqueio, usa o fallback padrão.
  */
 export async function downloadCompleteLaudoPdf(
   exam: Exam, 
@@ -318,10 +320,46 @@ export async function downloadCompleteLaudoPdf(
 ): Promise<void> {
   const bytes = await generateCompleteLaudoPdfBytes(exam, report);
   const blob = new Blob([bytes as any], { type: 'application/pdf' });
+  
+  const cleanPatientName = exam.patient.name
+    .normalize('NFD')
+    .replace(/[\u0300-\u036f]/g, '')
+    .replace(/[^a-zA-Z0-9_\-]/g, '_');
+  const defaultFilename = customFilename || `AM_Laudo_${cleanPatientName}_${exam.protocolNumber}.pdf`;
+
+  // 1. Tenta utilizar a API nativa do navegador para abrir a janela "Salvar Como..." (escolher pasta)
+  if (typeof window !== 'undefined' && 'showSaveFilePicker' in window) {
+    try {
+      const fileHandle = await (window as any).showSaveFilePicker({
+        suggestedName: defaultFilename,
+        types: [
+          {
+            description: 'Documento PDF (*.pdf)',
+            accept: {
+              'application/pdf': ['.pdf']
+            }
+          }
+        ]
+      });
+
+      const writableStream = await fileHandle.createWritable();
+      await writableStream.write(blob);
+      await writableStream.close();
+      return;
+    } catch (err: any) {
+      // Se o usuário cancelou a janela de salvar, encerra sem disparar download forçado
+      if (err && (err.name === 'AbortError' || err.code === 20)) {
+        return;
+      }
+      console.warn('showSaveFilePicker não concluído, acionando fallback:', err);
+    }
+  }
+
+  // 2. Fallback para navegadores sem suporte ao showSaveFilePicker
   const url = URL.createObjectURL(blob);
   const a = document.createElement('a');
   a.href = url;
-  a.download = customFilename || `AM_Laudo_${exam.patient.name.replace(/\s+/g, '_')}_${exam.protocolNumber}.pdf`;
+  a.download = defaultFilename;
   document.body.appendChild(a);
   a.click();
   document.body.removeChild(a);

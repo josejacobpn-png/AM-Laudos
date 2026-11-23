@@ -291,7 +291,10 @@ function MainAppContent() {
     if (!exam.report) return;
     try {
       await downloadCompleteLaudoPdf(exam, exam.report);
-    } catch (err) {
+    } catch (err: any) {
+      if (err && (err.name === 'AbortError' || err.code === 20)) {
+        return;
+      }
       console.warn('Fallback para download padrão jsPDF:', err);
       const doc = generateLaudoPdf(exam, exam.report);
       doc.save(`AM_Laudos_${exam.patient.name.replace(/\s+/g, '_')}_${exam.protocolNumber}.pdf`);
