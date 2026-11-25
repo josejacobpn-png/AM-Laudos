@@ -24,6 +24,14 @@ function MainAppContent() {
     localStorage.removeItem('am_laudos_clinics_v1');
     localStorage.removeItem('am_laudos_doctors_v1');
     localStorage.removeItem('am_laudos_exams_v1');
+    if (localStorage.getItem('am_laudos_exams_v2')) {
+      localStorage.removeItem('am_laudos_exams_v2');
+      try {
+        indexedDB.deleteDatabase('am_laudos_files_db');
+      } catch (e) {
+        console.warn(e);
+      }
+    }
   }, []);
 
   const [clinics, setClinics] = useState<Clinic[]>(() => {
@@ -51,7 +59,16 @@ function MainAppContent() {
   });
 
   const [exams, setExams] = useState<Exam[]>(() => {
-    const saved = localStorage.getItem('am_laudos_exams_v2');
+    // Purga automática dos exames de teste da versão de desenvolvimento
+    if (localStorage.getItem('am_laudos_exams_v2')) {
+      localStorage.removeItem('am_laudos_exams_v2');
+      try {
+        indexedDB.deleteDatabase('am_laudos_files_db');
+      } catch (e) {
+        console.warn(e);
+      }
+    }
+    const saved = localStorage.getItem('am_laudos_exams_v3');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -88,7 +105,7 @@ function MainAppContent() {
         const { fileDataUrl, ...rest } = e;
         return rest;
       });
-      localStorage.setItem('am_laudos_exams_v2', JSON.stringify(sanitizedExams));
+      localStorage.setItem('am_laudos_exams_v3', JSON.stringify(sanitizedExams));
     } catch (e) {
       console.warn('Aviso ao sincronizar exames no localStorage:', e);
     }
