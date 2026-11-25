@@ -12,6 +12,7 @@ import { ReportEditor } from './components/Editor/ReportEditor';
 import { ExamUploadModal } from './components/ClinicPortal/ExamUploadModal';
 import { ReportViewModal } from './components/ReportViewModal';
 import { generateLaudoPdf, downloadCompleteLaudoPdf } from './utils/pdfGenerator';
+import { deleteExamFile, clearAllExamFiles } from './utils/fileStorage';
 import { formatDoctorDisplayName } from './utils/cryptoSim';
 import { supabase, isSupabaseConfigured } from './services/supabase';
 import './App.css';
@@ -247,6 +248,31 @@ function MainAppContent() {
     setDoctors(prev => prev.filter(d => d.id !== doctorId));
   };
 
+  // Handler de exclusão individual de exame pelo Admin
+  const handleDeleteExam = (examId: string) => {
+    setExams(prev => prev.filter(e => e.id !== examId));
+    deleteExamFile(examId).catch(console.warn);
+    const sb = supabase;
+    if (isSupabaseConfigured && sb) {
+      sb.from('laudos').delete().eq('exame_id', examId).then(() => {
+        sb.from('exames').delete().eq('id', examId).then(() => {});
+      });
+    }
+  };
+
+  // Handler de limpeza geral de todos os exames de teste pelo Admin
+  const handleClearAllExams = () => {
+    setExams([]);
+    localStorage.removeItem('am_laudos_exams_v2');
+    clearAllExamFiles().catch(console.warn);
+    const sb = supabase;
+    if (isSupabaseConfigured && sb) {
+      sb.from('laudos').delete().neq('id', '00000000-0000-0000-0000-000000000000').then(() => {
+        sb.from('exames').delete().neq('id', '00000000-0000-0000-0000-000000000000').then(() => {});
+      });
+    }
+  };
+
   // Abrir editor para laudar (Apenas Médicos ou Admin)
   const handleSelectExamToReport = (exam: Exam) => {
     if (role !== 'MEDICO_LAUDISTA' && role !== 'ADMIN') return; // Bloqueio estrito: Clínicas não laudam exames
@@ -349,6 +375,8 @@ function MainAppContent() {
                 onAddDoctor={handleAddDoctor}
                 onUpdateDoctor={handleUpdateDoctor}
                 onDeleteDoctor={handleDeleteDoctor}
+                onDeleteExam={handleDeleteExam}
+                onClearAllExams={handleClearAllExams}
                 onViewReport={handleViewReport}
               />
             )}

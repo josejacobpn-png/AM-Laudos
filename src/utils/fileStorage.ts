@@ -112,6 +112,42 @@ export async function getExamFile(examId: string, fileName?: string): Promise<St
 }
 
 /**
+ * Remove o arquivo de um exame específico do IndexedDB.
+ */
+export async function deleteExamFile(examId: string): Promise<void> {
+  try {
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.delete(examId);
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.warn('Erro ao deletar arquivo do IndexedDB:', err);
+  }
+}
+
+/**
+ * Limpa todos os arquivos de exames do IndexedDB.
+ */
+export async function clearAllExamFiles(): Promise<void> {
+  try {
+    const db = await openDatabase();
+    return new Promise((resolve, reject) => {
+      const tx = db.transaction(STORE_NAME, 'readwrite');
+      const store = tx.objectStore(STORE_NAME);
+      const req = store.clear();
+      req.onsuccess = () => resolve();
+      req.onerror = () => reject(req.error);
+    });
+  } catch (err) {
+    console.warn('Erro ao limpar arquivos do IndexedDB:', err);
+  }
+}
+
+/**
  * Converte um objeto File ou Blob do navegador para DataURL (base64)
  */
 export function fileToDataUrl(file: File | Blob): Promise<string> {
