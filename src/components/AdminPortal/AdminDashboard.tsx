@@ -58,8 +58,6 @@ interface AdminDashboardProps {
   onAddDoctor?: (newDoctor: UserProfile) => void;
   onUpdateDoctor?: (updatedDoctor: UserProfile) => void;
   onDeleteDoctor?: (doctorId: string) => void;
-  onDeleteExam?: (examId: string) => void;
-  onClearAllExams?: () => void;
   onViewReport: (exam: Exam) => void;
 }
 
@@ -73,8 +71,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   onAddDoctor,
   onUpdateDoctor,
   onDeleteDoctor,
-  onDeleteExam,
-  onClearAllExams,
   onViewReport
 }) => {
   const [activeTab, setActiveTab] = useState<'clinicas' | 'medicos' | 'auditoria' | 'exames_geral'>('clinicas');
@@ -226,7 +222,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   // Estados para modal de confirmação / bloqueio de exclusão
   const [deleteModalData, setDeleteModalData] = useState<{
     isOpen: boolean;
-    type: 'CLINICA' | 'MEDICO' | 'EXAME' | 'TODOS_EXAMES';
+    type: 'CLINICA' | 'MEDICO';
     id: string;
     name: string;
     detail: string;
@@ -770,32 +766,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     });
   };
 
-  // Solicitar exclusão de exame de teste individual
-  const handleRequestDeleteExam = (exam: Exam) => {
-    setDeleteModalData({
-      isOpen: true,
-      type: 'EXAME',
-      id: exam.id,
-      name: exam.patient.name,
-      detail: `Protocolo ${exam.protocolNumber} (${exam.clinicName})`,
-      linkedCount: 0,
-      canDelete: true
-    });
-  };
-
-  // Solicitar limpeza total de exames de teste
-  const handleRequestClearAllExams = () => {
-    setDeleteModalData({
-      isOpen: true,
-      type: 'TODOS_EXAMES',
-      id: 'all',
-      name: `Todos os ${exams.length} exames e laudos`,
-      detail: 'Base de dados e traçados de teste',
-      linkedCount: exams.length,
-      canDelete: true
-    });
-  };
-
   // Executar exclusão definitiva (quando canDelete === true)
   const handleConfirmDelete = async () => {
     if (!deleteModalData.canDelete || !deleteModalData.id) return;
@@ -828,14 +798,6 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
         onDeleteDoctor(deleteModalData.id);
       } else {
         setLocalDoctors(prev => prev.filter(d => d.id !== deleteModalData.id));
-      }
-    } else if (deleteModalData.type === 'EXAME') {
-      if (onDeleteExam) {
-        onDeleteExam(deleteModalData.id);
-      }
-    } else if (deleteModalData.type === 'TODOS_EXAMES') {
-      if (onClearAllExams) {
-        onClearAllExams();
       }
     }
 
@@ -1203,24 +1165,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       {/* Aba 3: Monitor Global de Exames */}
       {activeTab === 'exames_geral' && (
         <div className="table-card animate-fade-in">
-          <div className="table-header-toolbar" style={{ display: 'flex', justifyContent: 'space-between', alignItems: 'center', flexWrap: 'wrap', gap: '0.75rem' }}>
+          <div className="table-header-toolbar">
             <h3>Todos os Exames no Sistema em Tempo Real ({exams.length})</h3>
-            {exams.length > 0 && (
-              <button
-                type="button"
-                className="btn-add-primary"
-                style={{
-                  backgroundColor: '#fee2e2',
-                  color: '#b91c1c',
-                  border: '1px solid #fca5a5'
-                }}
-                onClick={handleRequestClearAllExams}
-                title="Excluir todos os exames e laudos de teste para iniciar produção"
-              >
-                <Trash2 size={16} />
-                <span>Limpar Exames de Teste ({exams.length})</span>
-              </button>
-            )}
           </div>
 
           <div className="table-responsive">
@@ -1256,38 +1202,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     </td>
                     <td>{formatDateTimeBR(e.receivedAt)}</td>
                     <td>
-                      <div style={{ display: 'flex', gap: '0.45rem', alignItems: 'center', flexWrap: 'wrap' }}>
-                        {e.status === 'LAUDADO' && (
-                          <button
-                            className="btn-action view"
-                            onClick={() => onViewReport(e)}
-                          >
-                            Ver Laudo
-                          </button>
-                        )}
+                      {e.status === 'LAUDADO' ? (
                         <button
-                          type="button"
-                          className="btn-action delete"
-                          style={{
-                            padding: '0.35rem 0.6rem',
-                            backgroundColor: '#fef2f2',
-                            color: '#dc2626',
-                            border: '1px solid #fecaca',
-                            borderRadius: 'var(--radius-sm)',
-                            display: 'inline-flex',
-                            alignItems: 'center',
-                            gap: '0.25rem',
-                            cursor: 'pointer',
-                            fontSize: '0.78rem',
-                            fontWeight: 600
-                          }}
-                          onClick={() => handleRequestDeleteExam(e)}
-                          title="Excluir este exame de teste"
+                          className="btn-action view"
+                          onClick={() => onViewReport(e)}
                         >
-                          <Trash2 size={13} />
-                          <span>Excluir</span>
+                          Ver Laudo
                         </button>
-                      </div>
+                      ) : (
+                        <span style={{ color: '#94a3b8', fontSize: '0.85rem' }}>-</span>
+                      )}
                     </td>
                   </tr>
                 ))}
@@ -1876,11 +1800,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 )}
                 <h3>
                   {deleteModalData.canDelete
-                    ? deleteModalData.type === 'TODOS_EXAMES'
-                      ? 'Confirmar Limpeza Total de Exames de Teste'
-                      : deleteModalData.type === 'EXAME'
-                      ? 'Confirmar Exclusão de Exame'
-                      : `Confirmar Exclusão de ${deleteModalData.type === 'CLINICA' ? 'Clínica' : 'Médico'}`
+                    ? `Confirmar Exclusão de ${deleteModalData.type === 'CLINICA' ? 'Clínica' : 'Médico'}`
                     : 'Exclusão Não Permitida'}
                 </h3>
               </div>
@@ -1950,29 +1870,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     fontSize: '0.875rem',
                     lineHeight: '1.45'
                   }}>
-                    {deleteModalData.type === 'TODOS_EXAMES' ? (
-                      <>
-                        Tem certeza que deseja excluir <strong>todos os {deleteModalData.linkedCount} exame(s) e laudo(s) de teste</strong> do sistema?
-                      </>
-                    ) : deleteModalData.type === 'EXAME' ? (
-                      <>
-                        Tem certeza que deseja excluir o exame de teste de <strong>{deleteModalData.name}</strong> ({deleteModalData.detail})?
-                      </>
-                    ) : (
-                      <>
-                        Tem certeza que deseja excluir permanentemente o cadastro de <strong>{deleteModalData.name}</strong> ({deleteModalData.detail})?
-                      </>
-                    )}
+                    Tem certeza que deseja excluir permanentemente o cadastro de <strong>{deleteModalData.name}</strong> ({deleteModalData.detail})?
                   </div>
 
                   <p style={{ fontSize: '0.825rem', color: '#64748b', margin: 0, lineHeight: '1.4' }}>
-                    {deleteModalData.type === 'TODOS_EXAMES' ? (
-                      'Esta ação removerá todos os registros de exames, laudos e arquivos anexados de teste. A fila e a central de laudos ficarão zeradas, prontas para uso real em produção. Os cadastros de clínicas e médicos credenciados permanecerão intactos.'
-                    ) : deleteModalData.type === 'EXAME' ? (
-                      'Este exame e seu eventual laudo e traçado associado serão excluídos definitivamente.'
-                    ) : (
-                      'Esta unidade/profissional não possui nenhum exame ou laudo associado. Esta ação é definitiva e removerá todos os dados e credenciais de acesso vinculados.'
-                    )}
+                    Esta unidade/profissional não possui nenhum exame ou laudo associado. Esta ação é definitiva e removerá todos os dados e credenciais de acesso vinculados.
                   </p>
 
                   <div className="modal-footer" style={{ marginTop: '0.5rem', padding: 0 }}>
@@ -1990,11 +1892,7 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                       style={{ backgroundColor: '#dc2626', borderColor: '#b91c1c' }}
                       onClick={handleConfirmDelete}
                     >
-                      {isDeleting
-                        ? 'Excluindo...'
-                        : deleteModalData.type === 'TODOS_EXAMES'
-                        ? 'Limpar Todos os Exames'
-                        : 'Confirmar Exclusão'}
+                      {isDeleting ? 'Excluindo...' : 'Confirmar Exclusão'}
                     </button>
                   </div>
                 </>
