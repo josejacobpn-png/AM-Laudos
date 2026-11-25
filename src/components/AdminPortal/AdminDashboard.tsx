@@ -297,36 +297,55 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           clinicId = clinicData.id;
         }
 
-        // 2. Criar usuário no Supabase Auth para a clínica usando cliente isolado (não desloga o admin)
-        const authClient = createIsolatedAuthClient();
-        const { data: authData, error: authErr } = await authClient.auth.signUp({
-          email: cleanEmail,
-          password: newSenha,
-          options: {
-            data: {
+        // 2. Criar ou sincronizar usuário no Supabase Auth com confirmação imediata
+        let userCreated = false;
+        try {
+          const { data: rpcData, error: rpcErr } = await supabase.rpc('admin_salvar_usuario', {
+            p_email: cleanEmail,
+            p_senha: newSenha,
+            p_nome: cleanNome,
+            p_tipo: 'TECNICO_CLINICA',
+            p_clinica_id: clinicId
+          });
+
+          if (!rpcErr && rpcData && (rpcData as any)?.success) {
+            userCreated = true;
+          }
+        } catch (e) {
+          console.warn('Tentando fallback de criação de usuário:', e);
+        }
+
+        if (!userCreated) {
+          const authClient = createIsolatedAuthClient();
+          const { data: authData, error: authErr } = await authClient.auth.signUp({
+            email: cleanEmail,
+            password: newSenha,
+            options: {
+              data: {
+                nome_completo: cleanNome,
+                tipo: 'TECNICO_CLINICA',
+                clinica_id: clinicId
+              }
+            }
+          });
+
+          if (authErr) {
+            console.warn('Aviso Supabase Auth ao registrar clínica:', authErr.message);
+            const isAlready = authErr.message?.toLowerCase().includes('already registered') || (authErr as any)?.status === 422;
+            if (isAlready) {
+              setIsSubmittingClinic(false);
+              setClinicFormError(`O e-mail "${cleanEmail}" já está cadastrado no sistema. Por favor, utilize outro e-mail para o acesso desta clínica.`);
+              return;
+            }
+          } else if (authData.user) {
+            await supabase.from('perfis').upsert({
+              id: authData.user.id,
               nome_completo: cleanNome,
               tipo: 'TECNICO_CLINICA',
-              clinica_id: clinicId
-            }
+              clinica_id: clinicId,
+              telefone: newTelefone.trim() || undefined
+            });
           }
-        });
-
-        if (authErr) {
-          console.warn('Aviso Supabase Auth ao registrar clínica:', authErr.message);
-          const isAlready = authErr.message?.toLowerCase().includes('already registered') || (authErr as any)?.status === 422;
-          if (isAlready) {
-            setIsSubmittingClinic(false);
-            setClinicFormError(`O e-mail "${cleanEmail}" já está cadastrado no sistema. Por favor, utilize outro e-mail para o acesso desta clínica.`);
-            return;
-          }
-        } else if (authData.user) {
-          await supabase.from('perfis').upsert({
-            id: authData.user.id,
-            nome_completo: cleanNome,
-            tipo: 'TECNICO_CLINICA',
-            clinica_id: clinicId,
-            telefone: newTelefone.trim() || undefined
-          });
         }
       } catch (err: any) {
         console.warn('Erro ao conectar clínica com Supabase:', err);
@@ -659,40 +678,53 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
 
         // Se informou nova senha, atualiza o usuário no Supabase Auth
         if (trimmedPassword && cleanEmail) {
-          // 1. Tentar alterar a senha via RPC (função de administrador)
-          const { data: rpcRes, error: rpcErr } = await supabase.rpc('admin_alterar_senha_usuario', {
-            email_usuario: cleanEmail,
-            nova_senha: trimmedPassword
+          // 1. Tentar salvar/atualizar via admin_salvar_usuario
+          const { data: rpcRes, error: rpcErr } = await supabase.rpc('admin_salvar_usuario', {
+            p_email: cleanEmail,
+            p_senha: trimmedPassword,
+            p_nome: updated.name,
+            p_tipo: 'TECNICO_CLINICA',
+            p_clinica_id: updated.id
           });
 
           if (!rpcErr && rpcRes && (rpcRes as any)?.success) {
             passwordUpdated = true;
           } else {
-            // 2. Se o usuário ainda não tiver sido registrado em auth.users, cria conta diretamente com a nova senha
-            const authClient = createIsolatedAuthClient();
-            const { data: authData } = await authClient.auth.signUp({
-              email: cleanEmail,
-              password: trimmedPassword,
-              options: {
-                data: {
-                  nome_completo: updated.name,
-                  tipo: 'TECNICO_CLINICA',
-                  clinica_id: updated.id
-                }
-              }
+            // 2. Tentar função admin_alterar_senha_usuario
+            const { data: altRes, error: altErr } = await supabase.rpc('admin_alterar_senha_usuario', {
+              email_usuario: cleanEmail,
+              nova_senha: trimmedPassword
             });
 
-            if (authData?.user) {
+            if (!altErr && altRes && (altRes as any)?.success) {
               passwordUpdated = true;
-              await supabase.from('perfis').upsert({
-                id: authData.user.id,
-                nome_completo: updated.name,
-                tipo: 'TECNICO_CLINICA',
-                clinica_id: updated.id,
-                telefone: updated.phone
+            } else {
+              // 3. Fallback: signUp direto
+              const authClient = createIsolatedAuthClient();
+              const { data: authData } = await authClient.auth.signUp({
+                email: cleanEmail,
+                password: trimmedPassword,
+                options: {
+                  data: {
+                    nome_completo: updated.name,
+                    tipo: 'TECNICO_CLINICA',
+                    clinica_id: updated.id
+                  }
+                }
               });
-            } else if (rpcErr) {
-              console.warn('Aviso RPC alterar senha:', rpcErr);
+
+              if (authData?.user) {
+                passwordUpdated = true;
+                await supabase.from('perfis').upsert({
+                  id: authData.user.id,
+                  nome_completo: updated.name,
+                  tipo: 'TECNICO_CLINICA',
+                  clinica_id: updated.id,
+                  telefone: updated.phone
+                });
+              } else if (rpcErr || altErr) {
+                console.warn('Aviso ao alterar senha via RPC:', rpcErr || altErr);
+              }
             }
           }
         }
