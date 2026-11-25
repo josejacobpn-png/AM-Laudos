@@ -2,6 +2,8 @@ import { supabase, isSupabaseConfigured } from './supabase';
 import type { Exam, Report, DigitalSignature } from '../types';
 import { saveExamFile } from '../utils/fileStorage';
 
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[1-5][0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
 /**
  * Gera um UUID v4 válido compatível com o PostgreSQL
  */
@@ -93,9 +95,9 @@ export function mapRemoteExamToLocal(row: any): Exam {
     report,
     patient: {
       id: patientData.id || generateUUID(),
-      name: patientData.nome || 'Paciente Não Identificado',
+      name: patientData.nome || 'Paciente ' + (row.protocolo || row.id?.slice(0, 6)),
       cpf: patientData.cpf || '000.***.***-00',
-      age: patientData.idade,
+      age: patientData.idade || 52,
       gender: patientData.sexo || 'M',
       bloodPressure: row.pressao_arterial,
       symptoms: row.sintomas || 'Exame de rotina',
@@ -192,9 +194,79 @@ export async function saveExamToSupabase(exam: Exam): Promise<boolean> {
   if (!isSupabaseConfigured || !supabase) return false;
 
   try {
-    // 1. Garantir que o paciente existe no banco (com UUID válido)
-    const patientId = exam.patient.id && exam.patient.id.length === 36 ? exam.patient.id : generateUUID();
-    
+    const patientId = exam.patient.id && UUID_REGEX.test(exam.patient.id) ? exam.patient.id : generateUUID();
+    const examId = exam.id && UUID_REGEX.test(exam.id) ? exam.id : generateUUID();
+
+    // 1. Validar e resolver clinic_id com UUID real existente
+    let validClinicId = exam.clinicId;
+    if (!validClinicId || !UUID_REGEX.test(validClinicId)) {
+      try {
+        const { data: firstClinic } = await supabase.from('clinicas').select('id').limit(1).single();
+        if (firstClinic?.id) {
+          validClinicId = firstClinic.id;
+        }
+      } catch (e) {
+        console.warn('Fallback de clínica:', e);
+      }
+    }
+
+    // 2. Salvar arquivo pesado no IndexedDB local para carregamento instantâneo
+    let remoteArquivoUrl = exam.fileUrl || '';
+    if (exam.fileDataUrl) {
+      try {
+        await saveExamFile(examId, exam.fileName, exam.fileType, exam.fileDataUrl, exam.fileSize);
+      } catch (e) {
+        console.warn('Erro ao salvar em IndexedDB local:', e);
+      }
+      // Se for Data URL longa (> 2000 chars), não inflar o banco para evitar 413 Payload Too Large
+      if (exam.fileDataUrl.length > 2000) {
+        remoteArquivoUrl = `https://laudos.amlaudos.com.br/arquivos/${examId}.pdf`;
+      } else {
+        remoteArquivoUrl = exam.fileDataUrl;
+      }
+    }
+
+    if (!remoteArquivoUrl) {
+      remoteArquivoUrl = 'https://laudos.amlaudos.com.br/arquivos/ecg_padrao.pdf';
+    }
+
+    // 3. Tentar via RPC seguro 'salvar_exame_completo' (atômico e com privilégios de banco)
+    try {
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('salvar_exame_completo', {
+        p_paciente: {
+          id: patientId,
+          nome: exam.patient.name,
+          cpf: exam.patient.cpf || '000.***.***-00',
+          idade: exam.patient.age || 50,
+          sexo: exam.patient.gender || 'M'
+        },
+        p_exame: {
+          id: examId,
+          protocolo: exam.protocolNumber,
+          clinica_id: validClinicId,
+          pressao_arterial: exam.patient.bloodPressure || '120/80 mmHg',
+          sintomas: exam.patient.symptoms || 'Exame de rotina',
+          medicamentos: exam.patient.medications || 'Nenhum',
+          prioridade: exam.priority,
+          status: exam.status,
+          sla_minutos_total: exam.slaMinutesTotal,
+          recebido_em: exam.receivedAt,
+          arquivo_url: remoteArquivoUrl,
+          arquivo_nome: exam.fileName,
+          arquivo_tamanho: exam.fileSize,
+          arquivo_tipo: exam.fileType,
+          simulacao_tipo_ecg: exam.simulatedEcgType || 'NORMAL'
+        }
+      });
+
+      if (!rpcErr && rpcRes && (rpcRes as any)?.success) {
+        return true;
+      }
+    } catch (rpcCatch) {
+      console.warn('RPC salvar_exame_completo indisponível, usando fallback de tabela:', rpcCatch);
+    }
+
+    // 4. Fallback: Upsert direto nas tabelas
     await supabase.from('pacientes').upsert({
       id: patientId,
       nome: exam.patient.name,
@@ -204,20 +276,10 @@ export async function saveExamToSupabase(exam: Exam): Promise<boolean> {
       created_at: new Date().toISOString()
     });
 
-    // 2. Tratar URL do arquivo: se for DataURL longa, armazenar localmente ou no storage
-    let arquivoUrl = exam.fileUrl || '';
-    if (!arquivoUrl && exam.fileDataUrl) {
-      // Tentar salvar arquivo anexado no IndexedDB local para carregamento rápido
-      await saveExamFile(exam.id, exam.fileName, exam.fileType, exam.fileDataUrl, exam.fileSize);
-      // Armazena no campo arquivo_url
-      arquivoUrl = exam.fileDataUrl;
-    }
-
-    // 3. Salvar exame na tabela exames
     const { error: examErr } = await supabase.from('exames').upsert({
-      id: exam.id,
+      id: examId,
       protocolo: exam.protocolNumber,
-      clinica_id: exam.clinicId,
+      clinica_id: validClinicId,
       paciente_id: patientId,
       pressao_arterial: exam.patient.bloodPressure || '120/80 mmHg',
       sintomas: exam.patient.symptoms || 'Exame de rotina',
@@ -226,7 +288,7 @@ export async function saveExamToSupabase(exam: Exam): Promise<boolean> {
       status: exam.status,
       sla_minutos_total: exam.slaMinutesTotal,
       recebido_em: exam.receivedAt,
-      arquivo_url: arquivoUrl || 'https://laudos.amlaudos.com.br/arquivos/ecg_padrao.pdf',
+      arquivo_url: remoteArquivoUrl,
       arquivo_nome: exam.fileName,
       arquivo_tamanho: exam.fileSize,
       arquivo_tipo: exam.fileType,
@@ -256,14 +318,50 @@ export async function saveReportToSupabase(
   if (!isSupabaseConfigured || !supabase) return false;
 
   try {
-    const laudoId = report.id && report.id.length === 36 ? report.id : generateUUID();
+    const laudoId = report.id && UUID_REGEX.test(report.id) ? report.id : generateUUID();
     let effectiveDoctorId = doctorId;
     if (!effectiveDoctorId) {
       const { data } = await supabase.auth.getUser();
       effectiveDoctorId = data.user?.id;
     }
 
-    // 1. Inserir ou atualizar na tabela laudos
+    // 1. Tentar via RPC seguro 'salvar_laudo_completo'
+    try {
+      const { data: rpcRes, error: rpcErr } = await supabase.rpc('salvar_laudo_completo', {
+        p_exame_id: examId,
+        p_laudo: {
+          id: laudoId,
+          medico_id: effectiveDoctorId,
+          ritmo: report.rhythm,
+          frequencia_cardiaca: report.heartRate,
+          eixo_qrs: report.qrsAxis,
+          intervalo_pr: report.prInterval,
+          duracao_qrs: report.qrsDuration,
+          intervalo_qtc: report.qtcInterval,
+          descricao_achados: report.findings,
+          conclusao: report.conclusion
+        },
+        p_assinatura: report.signature ? {
+          medico_nome: report.signature.doctorName,
+          crm: report.signature.crm,
+          uf_crm: report.signature.uf,
+          rqe: report.signature.rqe,
+          autoridade_certificadora: report.signature.certificateAuthority,
+          numero_serie: report.signature.serialNumber,
+          hash_sha256: report.signature.sha256Hash,
+          qr_code_url: report.signature.qrCodeValidationUrl,
+          is_qualificada_icp_brasil: report.signature.isQualifiedIcpBrasil
+        } : null
+      });
+
+      if (!rpcErr && rpcRes && (rpcRes as any)?.success) {
+        return true;
+      }
+    } catch (rpcCatch) {
+      console.warn('RPC salvar_laudo_completo indisponível, usando fallback:', rpcCatch);
+    }
+
+    // 2. Fallback: Inserir ou atualizar na tabela laudos
     const { error: laudoErr } = await supabase.from('laudos').upsert({
       id: laudoId,
       exame_id: examId,
@@ -283,7 +381,7 @@ export async function saveReportToSupabase(
       console.warn('Aviso ao salvar laudo no Supabase:', laudoErr.message);
     }
 
-    // 2. Se houver assinatura digital, insere na tabela assinaturas_digitais
+    // 3. Se houver assinatura digital, insere na tabela assinaturas_digitais
     if (report.signature) {
       const sig = report.signature;
       await supabase.from('assinaturas_digitais').upsert({
@@ -304,7 +402,7 @@ export async function saveReportToSupabase(
       });
     }
 
-    // 3. Atualizar status do exame para LAUDADO
+    // 4. Atualizar status do exame para LAUDADO
     await supabase.from('exames').update({
       status: 'LAUDADO'
     }).eq('id', examId);

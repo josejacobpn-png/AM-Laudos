@@ -284,15 +284,17 @@ function MainAppContent() {
   };
 
   // Handler de criação de novo(s) exame(s) via upload
-  const handleExamCreated = (newExam: Exam | Exam[]) => {
+  const handleExamCreated = async (newExam: Exam | Exam[]) => {
     if (Array.isArray(newExam)) {
       setExams(prev => [...newExam, ...prev]);
       for (const e of newExam) {
-        saveExamToSupabase(e).catch(err => console.warn('Erro ao sincronizar exame com a nuvem:', err));
+        await saveExamToSupabase(e).catch(err => console.warn('Erro ao sincronizar exame com a nuvem:', err));
       }
+      loadExams();
     } else {
       setExams(prev => [newExam, ...prev]);
-      saveExamToSupabase(newExam).catch(err => console.warn('Erro ao sincronizar exame com a nuvem:', err));
+      await saveExamToSupabase(newExam).catch(err => console.warn('Erro ao sincronizar exame com a nuvem:', err));
+      loadExams();
     }
   };
 
@@ -379,7 +381,9 @@ function MainAppContent() {
     }
 
     // Salvar laudo e assinatura no Supabase para que a clínica em outro computador veja imediatamente
-    saveReportToSupabase(examId, report).catch(err => console.warn('Erro ao salvar laudo na nuvem:', err));
+    saveReportToSupabase(examId, report)
+      .then(() => loadExams())
+      .catch(err => console.warn('Erro ao salvar laudo na nuvem:', err));
   };
 
   // Download do PDF oficial completo com o traçado original do exame

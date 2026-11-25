@@ -69,8 +69,16 @@ export const ExamUploadModal: React.FC<ExamUploadModalProps> = ({
   const fileInputRef = useRef<HTMLInputElement>(null);
 
   const [selectedClinicId, setSelectedClinicId] = useState(
-    currentUser?.clinicId || clinics[0]?.id || 'cli-01'
+    currentUser?.clinicId || clinics[0]?.id || ''
   );
+
+  useEffect(() => {
+    if (currentUser?.clinicId) {
+      setSelectedClinicId(currentUser.clinicId);
+    } else if (clinics.length > 0 && (!selectedClinicId || selectedClinicId === 'cli-01')) {
+      setSelectedClinicId(clinics[0].id);
+    }
+  }, [currentUser?.clinicId, clinics, selectedClinicId]);
   
   // Lista de arquivos selecionados (suporte a seleção múltipla / lote)
   const [selectedFiles, setSelectedFiles] = useState<SelectedFileItem[]>([]);
@@ -187,7 +195,10 @@ export const ExamUploadModal: React.FC<ExamUploadModalProps> = ({
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    const clinic = clinics.find(c => c.id === selectedClinicId) || clinics[0];
+    const clinic = clinics.find(c => c.id === selectedClinicId) || clinics[0] || {
+      id: currentUser?.clinicId || '771769a3-ab20-48eb-a07c-ec30a688900f',
+      name: currentUser?.clinicName || 'Clínica Conveniada'
+    };
     const slaMap = {
       EMERGENCIA: 15,
       URGENCIA: 120,
