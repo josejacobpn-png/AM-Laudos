@@ -15,6 +15,7 @@ import type { Clinic, Exam, Priority } from '../../types';
 import { calculateSha256, generateProtocolNumber } from '../../utils/cryptoSim';
 import { useAuth } from '../../context/AuthContext';
 import { fileToDataUrl, saveExamFile } from '../../utils/fileStorage';
+import { generateUUID } from '../../services/examService';
 
 export interface SelectedFileItem {
   id: string;
@@ -204,12 +205,12 @@ export const ExamUploadModal: React.FC<ExamUploadModalProps> = ({
 
       setIsSubmitting(true);
 
-      const batchExams: Exam[] = await Promise.all(selectedFiles.map(async (item, idx) => {
+      const batchExams: Exam[] = await Promise.all(selectedFiles.map(async (item) => {
         let simulatedEcg: 'NORMAL' | 'ARRHYTHMIA' | 'ISCHEMIA' | 'LBBB' | 'BRADYCARDIA' = 'NORMAL';
         if (item.priority === 'EMERGENCIA') simulatedEcg = 'ISCHEMIA';
         else if (item.priority === 'URGENCIA') simulatedEcg = 'ARRHYTHMIA';
 
-        const examId = `ex-${Date.now()}-${idx}`;
+        const examId = generateUUID();
         const lowerName = item.name.toLowerCase();
         let detectedType: 'PDF' | 'IMAGE' | 'XML_DICOM' = 'PDF';
         if (lowerName.endsWith('.png') || lowerName.endsWith('.jpg') || lowerName.endsWith('.jpeg') || lowerName.endsWith('.webp') || lowerName.endsWith('.bmp')) {
@@ -244,7 +245,7 @@ export const ExamUploadModal: React.FC<ExamUploadModalProps> = ({
           simulatedEcgType: simulatedEcg,
           fileDataUrl,
           patient: {
-            id: `pat-${Date.now()}-${idx}`,
+            id: generateUUID(),
             name: item.patientName.trim(),
             cpf: '000.***.***-00',
             age: 52,
@@ -296,7 +297,7 @@ export const ExamUploadModal: React.FC<ExamUploadModalProps> = ({
       singleFileType = 'XML_DICOM';
     }
 
-    const examId = `ex-${Date.now()}`;
+    const examId = generateUUID();
     let fileDataUrl: string | undefined = undefined;
 
     if (selectedFiles[0]?.file) {
@@ -324,7 +325,7 @@ export const ExamUploadModal: React.FC<ExamUploadModalProps> = ({
       simulatedEcgType: simulatedEcg,
       fileDataUrl,
       patient: {
-        id: `pat-${Date.now()}`,
+        id: generateUUID(),
         name: finalPatientName,
         cpf: patientCpf || '000.***.***-00',
         age: patientAge !== '' ? Number(patientAge) : undefined,

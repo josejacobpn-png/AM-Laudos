@@ -1,4 +1,4 @@
-import { useState, useEffect } from 'react';
+import { useState, useEffect, useCallback } from 'react';
 import type { Exam, Clinic, Report, UserProfile } from './types';
 import { INITIAL_CLINICS, INITIAL_EXAMS } from './data/mockData';
 import { DEMO_USERS } from './data/mockUsers';
@@ -14,6 +14,7 @@ import { ReportViewModal } from './components/ReportViewModal';
 import { generateLaudoPdf, downloadCompleteLaudoPdf } from './utils/pdfGenerator';
 import { formatDoctorDisplayName } from './utils/cryptoSim';
 import { supabase, isSupabaseConfigured } from './services/supabase';
+import { fetchExamsFromSupabase, saveExamToSupabase, saveReportToSupabase } from './services/examService';
 import './App.css';
 
 function MainAppContent() {
@@ -197,6 +198,71 @@ function MainAppContent() {
       });
   }, [isAuthenticated]);
 
+  // Carregar e sincronizar exames em tempo real do Supabase
+  const loadExams = useCallback(async () => {
+    if (!isSupabaseConfigured || !supabase) return;
+    try {
+      const remoteExams = await fetchExamsFromSupabase();
+      if (remoteExams !== null) {
+        setExams(prev => {
+          // Se não há exames no banco e não há locais, lista vazia
+          if (remoteExams.length === 0 && prev.length === 0) return [];
+
+          const map = new Map<string, Exam>();
+          // Exames remotos têm precedência (atualizados pelo servidor/banco)
+          remoteExams.forEach(e => map.set(e.id, e));
+
+          // Preservar eventuais exames locais pendentes de envio
+          prev.forEach(e => {
+            if (!map.has(e.id)) {
+              map.set(e.id, e);
+            }
+          });
+
+          return Array.from(map.values());
+        });
+      }
+    } catch (err) {
+      console.warn('Aviso ao sincronizar exames remotos:', err);
+    }
+  }, []);
+
+  // Polling e sincronização em tempo real (permite que outros computadores vejam novos exames e laudos a cada 8s)
+  useEffect(() => {
+    if (!isAuthenticated) return;
+
+    loadExams();
+
+    const interval = setInterval(() => {
+      loadExams();
+    }, 8000);
+
+    // Canal Realtime do Supabase para atualização instantânea
+    let channel: any = null;
+    if (isSupabaseConfigured && supabase) {
+      try {
+        channel = supabase
+          .channel('exames-realtime-channel')
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'exames' }, () => {
+            loadExams();
+          })
+          .on('postgres_changes', { event: '*', schema: 'public', table: 'laudos' }, () => {
+            loadExams();
+          })
+          .subscribe();
+      } catch (e) {
+        console.warn('Realtime fallback ativo');
+      }
+    }
+
+    return () => {
+      clearInterval(interval);
+      if (channel && supabase) {
+        supabase.removeChannel(channel);
+      }
+    };
+  }, [isAuthenticated, loadExams]);
+
   // Ajustar visão inicial do Admin ao logar
   useEffect(() => {
     if (!isAuthenticated) return;
@@ -221,8 +287,12 @@ function MainAppContent() {
   const handleExamCreated = (newExam: Exam | Exam[]) => {
     if (Array.isArray(newExam)) {
       setExams(prev => [...newExam, ...prev]);
+      for (const e of newExam) {
+        saveExamToSupabase(e).catch(err => console.warn('Erro ao sincronizar exame com a nuvem:', err));
+      }
     } else {
       setExams(prev => [newExam, ...prev]);
+      saveExamToSupabase(newExam).catch(err => console.warn('Erro ao sincronizar exame com a nuvem:', err));
     }
   };
 
@@ -275,6 +345,12 @@ function MainAppContent() {
       const updated = exams.map(e => e.id === exam.id ? { ...e, status: 'EM_ANALISE' as const, lockedByDoctor: doctorLabel } : e);
       setExams(updated);
       setSelectedExamToReport({ ...exam, status: 'EM_ANALISE', lockedByDoctor: doctorLabel });
+      if (isSupabaseConfigured && supabase) {
+        supabase.from('exames').update({
+          status: 'EM_ANALISE',
+          bloqueado_em: new Date().toISOString()
+        }).eq('id', exam.id).then(() => {});
+      }
     } else {
       setSelectedExamToReport(exam);
     }
@@ -301,6 +377,9 @@ function MainAppContent() {
     if (completedExam) {
       setViewingReportExam(completedExam);
     }
+
+    // Salvar laudo e assinatura no Supabase para que a clínica em outro computador veja imediatamente
+    saveReportToSupabase(examId, report).catch(err => console.warn('Erro ao salvar laudo na nuvem:', err));
   };
 
   // Download do PDF oficial completo com o traçado original do exame
