@@ -602,3 +602,38 @@ ON CONFLICT (id) DO UPDATE SET
   uf_crm = COALESCE(EXCLUDED.uf_crm, public.perfis.uf_crm),
   especialidade = COALESCE(EXCLUDED.especialidade, public.perfis.especialidade),
   updated_at = NOW();
+
+-- ------------------------------------------------------------------------------
+-- 14. FUNÇÃO RPC: ALTERAÇÃO DE SENHA DE USUÁRIO POR ADMINISTRADOR
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.admin_alterar_senha_usuario(email_usuario TEXT, nova_senha TEXT)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+AS $$
+DECLARE
+  v_user_id UUID;
+BEGIN
+  IF length(nova_senha) < 6 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'A nova senha deve ter no mínimo 6 caracteres.');
+  END IF;
+
+  SELECT id INTO v_user_id 
+  FROM auth.users 
+  WHERE LOWER(email) = LOWER(TRIM(email_usuario));
+
+  IF v_user_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Usuário com este e-mail não foi encontrado na base de autenticação.');
+  END IF;
+
+  UPDATE auth.users
+  SET 
+    encrypted_password = crypt(nova_senha, gen_salt('bf')),
+    updated_at = NOW()
+  WHERE id = v_user_id;
+
+  RETURN jsonb_build_object('success', true, 'message', 'Senha alterada com sucesso.');
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.admin_alterar_senha_usuario(TEXT, TEXT) TO authenticated, anon;

@@ -11,7 +11,10 @@ import {
   Layers,
   Pencil,
   Trash2,
-  RefreshCw
+  RefreshCw,
+  KeyRound,
+  Eye,
+  EyeOff
 } from 'lucide-react';
 import type { Clinic, Exam, UserProfile } from '../../types';
 import { DEMO_USERS } from '../../data/mockUsers';
@@ -100,6 +103,9 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
   const [editClinicAtivo, setEditClinicAtivo] = useState(true);
   const [isSubmittingEditClinic, setIsSubmittingEditClinic] = useState(false);
   const [editClinicError, setEditClinicError] = useState('');
+  const [editClinicNovaSenha, setEditClinicNovaSenha] = useState('');
+  const [showEditClinicSenha, setShowEditClinicSenha] = useState(false);
+  const [clinicSuccessMessage, setClinicSuccessMessage] = useState<string | null>(null);
 
   // Médicos cadastrados
   const [localDoctors, setLocalDoctors] = useState<UserProfile[]>(() => {
@@ -606,6 +612,8 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     setEditClinicTelefone(clinic.phone);
     setEditClinicEmail(clinic.email || '');
     setEditClinicAtivo(clinic.active !== false);
+    setEditClinicNovaSenha('');
+    setShowEditClinicSenha(false);
     setEditClinicError('');
     setIsEditClinicModalOpen(true);
   };
@@ -614,9 +622,16 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
     e.preventDefault();
     if (!editingClinic || !editClinicNome || !editClinicCnes) return;
 
+    const trimmedPassword = editClinicNovaSenha.trim();
+    if (trimmedPassword && trimmedPassword.length < 6) {
+      setEditClinicError('A nova senha de acesso da clínica deve ter no mínimo 6 caracteres.');
+      return;
+    }
+
     setIsSubmittingEditClinic(true);
     setEditClinicError('');
 
+    const cleanEmail = editClinicEmail.trim().toLowerCase();
     const updated: Clinic = {
       ...editingClinic,
       name: editClinicNome.trim(),
@@ -624,9 +639,11 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       city: editClinicCidade.trim() || 'São Paulo',
       state: editClinicEstado || 'SP',
       phone: editClinicTelefone.trim() || '(11) 3000-0000',
-      email: editClinicEmail.trim().toLowerCase(),
+      email: cleanEmail,
       active: editClinicAtivo
     };
+
+    let passwordUpdated = false;
 
     if (isSupabaseConfigured && supabase) {
       try {
@@ -639,7 +656,47 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
           email: updated.email,
           ativo: updated.active
         }).eq('id', updated.id);
-      } catch (err) {
+
+        // Se informou nova senha, atualiza o usuário no Supabase Auth
+        if (trimmedPassword && cleanEmail) {
+          // 1. Tentar alterar a senha via RPC (função de administrador)
+          const { data: rpcRes, error: rpcErr } = await supabase.rpc('admin_alterar_senha_usuario', {
+            email_usuario: cleanEmail,
+            nova_senha: trimmedPassword
+          });
+
+          if (!rpcErr && rpcRes && (rpcRes as any)?.success) {
+            passwordUpdated = true;
+          } else {
+            // 2. Se o usuário ainda não tiver sido registrado em auth.users, cria conta diretamente com a nova senha
+            const authClient = createIsolatedAuthClient();
+            const { data: authData } = await authClient.auth.signUp({
+              email: cleanEmail,
+              password: trimmedPassword,
+              options: {
+                data: {
+                  nome_completo: updated.name,
+                  tipo: 'TECNICO_CLINICA',
+                  clinica_id: updated.id
+                }
+              }
+            });
+
+            if (authData?.user) {
+              passwordUpdated = true;
+              await supabase.from('perfis').upsert({
+                id: authData.user.id,
+                nome_completo: updated.name,
+                tipo: 'TECNICO_CLINICA',
+                clinica_id: updated.id,
+                telefone: updated.phone
+              });
+            } else if (rpcErr) {
+              console.warn('Aviso RPC alterar senha:', rpcErr);
+            }
+          }
+        }
+      } catch (err: any) {
         console.warn('Erro ao atualizar clínica no Supabase:', err);
       }
     }
@@ -648,9 +705,17 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
       onUpdateClinic(updated);
     }
 
+    setClinicSuccessMessage(
+      passwordUpdated
+        ? `Dados cadastrais e senha de acesso da clínica "${updated.name}" foram atualizados com sucesso!`
+        : `Dados da clínica "${updated.name}" atualizados com sucesso!`
+    );
+    setTimeout(() => setClinicSuccessMessage(null), 5000);
+
     setIsSubmittingEditClinic(false);
     setIsEditClinicModalOpen(false);
     setEditingClinic(null);
+    setEditClinicNovaSenha('');
   };
 
   // Handlers para Edição de Médico Laudista
@@ -929,6 +994,27 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
               <span>Cadastrar Nova Clínica</span>
             </button>
           </div>
+
+          {clinicSuccessMessage && (
+            <div
+              className="animate-fade-in"
+              style={{
+                margin: '0.75rem 1rem 0 1rem',
+                padding: '0.75rem 1rem',
+                backgroundColor: '#ecfdf5',
+                border: '1px solid #6ee7b7',
+                borderRadius: '8px',
+                color: '#065f46',
+                fontSize: '0.875rem',
+                display: 'flex',
+                alignItems: 'center',
+                gap: '0.5rem'
+              }}
+            >
+              <CheckCircle size={18} className="text-emerald-600" />
+              <span>{clinicSuccessMessage}</span>
+            </div>
+          )}
 
           <div className="table-responsive">
             <table className="custom-table">
@@ -1643,6 +1729,57 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                     <option value="false">Inativa / Suspensa</option>
                   </select>
                 </div>
+              </div>
+
+              {/* Campo para Redefinição de Senha do Usuário da Clínica */}
+              <div 
+                className="form-group" 
+                style={{ 
+                  marginTop: '0.5rem', 
+                  backgroundColor: '#f8fafc', 
+                  padding: '0.85rem 1rem', 
+                  borderRadius: '8px', 
+                  border: '1px solid #e2e8f0' 
+                }}
+              >
+                <label style={{ display: 'flex', alignItems: 'center', gap: '0.45rem', fontWeight: 600, color: '#1e293b', marginBottom: '0.25rem' }}>
+                  <KeyRound size={16} className="text-primary" />
+                  <span>Redefinir Senha de Acesso da Clínica</span>
+                </label>
+                <div style={{ position: 'relative', marginTop: '0.35rem' }}>
+                  <input
+                    type={showEditClinicSenha ? 'text' : 'password'}
+                    placeholder="Deixe em branco para manter a senha atual"
+                    value={editClinicNovaSenha}
+                    onChange={(e) => setEditClinicNovaSenha(e.target.value)}
+                    className="form-control"
+                    minLength={6}
+                    style={{ paddingRight: '2.5rem' }}
+                  />
+                  <button
+                    type="button"
+                    onClick={() => setShowEditClinicSenha(!showEditClinicSenha)}
+                    style={{
+                      position: 'absolute',
+                      right: '0.75rem',
+                      top: '50%',
+                      transform: 'translateY(-50%)',
+                      background: 'none',
+                      border: 'none',
+                      cursor: 'pointer',
+                      color: '#64748b',
+                      display: 'flex',
+                      alignItems: 'center',
+                      padding: 0
+                    }}
+                    title={showEditClinicSenha ? 'Ocultar senha' : 'Ver senha'}
+                  >
+                    {showEditClinicSenha ? <EyeOff size={16} /> : <Eye size={16} />}
+                  </button>
+                </div>
+                <small style={{ color: '#64748b', fontSize: '0.75rem', marginTop: '0.35rem', display: 'block' }}>
+                  Caso deseje trocar a senha de acesso desta clínica, digite a nova senha acima (mínimo 6 caracteres). Se não quiser alterá-la, deixe este campo vazio.
+                </small>
               </div>
 
               {editClinicError && (
