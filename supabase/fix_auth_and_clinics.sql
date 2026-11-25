@@ -2,13 +2,14 @@
 -- AM LAUDOS - CORREÇÃO DE AUTENTICAÇÃO E CADASTRO DE CLÍNICAS/MÉDICOS
 -- ==============================================================================
 -- Este script:
--- 1. Corrige o trigger 'handle_new_user' para evitar erro 500 no Supabase Auth.
--- 2. Cria a função RPC 'admin_salvar_usuario' que cadastra/atualiza usuários
+-- 1. Garante que pgcrypto esteja no schema 'extensions'.
+-- 2. Corrige o trigger 'handle_new_user' para evitar erro 500 no Supabase Auth.
+-- 3. Cria a função RPC 'admin_salvar_usuario' que cadastra/atualiza usuários
 --    já com o e-mail confirmado imediatamente (sem bloqueio de confirmação de e-mail).
--- 3. Cadastra o acesso da clínica 'CSF JURANDIR CARVALHO' (jurandir@amlaudos.com).
+-- 4. Cadastra/ativa o acesso da clínica 'CSF JURANDIR CARVALHO' (jurandir@amlaudos.com).
 -- ==============================================================================
 
-CREATE EXTENSION IF NOT EXISTS "pgcrypto";
+CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA extensions;
 
 -- 1. CORREÇÃO DO TRIGGER DE CRIAÇÃO AUTOMÁTICA DE PERFIL
 CREATE OR REPLACE FUNCTION public.handle_new_user()
@@ -69,14 +70,14 @@ BEGIN
 EXCEPTION WHEN OTHERS THEN
   RETURN new;
 END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth;
+$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth, extensions;
 
 DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
 CREATE TRIGGER on_auth_user_created
   AFTER INSERT ON auth.users
   FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
 
--- 2. FUNÇÃO ADMINISTRATIVA DE CRIAÇÃO E ATUALIZAÇÃO DE USUÁRIOS
+-- 2. FUNÇÃO ADMINISTRATIVA DE CRIAÇÃO E ATUALIZAÇÃO IMEDIATA DE USUÁRIOS
 CREATE OR REPLACE FUNCTION public.admin_salvar_usuario(
   p_email TEXT,
   p_senha TEXT,
@@ -89,7 +90,7 @@ CREATE OR REPLACE FUNCTION public.admin_salvar_usuario(
 RETURNS JSONB
 LANGUAGE plpgsql
 SECURITY DEFINER
-SET search_path = public, auth
+SET search_path = public, auth, extensions
 AS $$
 DECLARE
   v_user_id UUID;
@@ -108,11 +109,11 @@ BEGIN
   WHERE LOWER(email) = LOWER(TRIM(p_email));
 
   IF v_user_id IS NOT NULL THEN
-    -- Atualizar usuário existente
+    -- Atualizar usuário existente (senha e dados)
     IF p_senha IS NOT NULL AND TRIM(p_senha) <> '' THEN
       UPDATE auth.users
       SET 
-        encrypted_password = crypt(p_senha, gen_salt('bf')),
+        encrypted_password = extensions.crypt(p_senha, extensions.gen_salt('bf')),
         email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
         raw_user_meta_data = jsonb_build_object(
           'nome_completo', p_nome,
@@ -138,13 +139,13 @@ BEGIN
       WHERE id = v_user_id;
     END IF;
   ELSE
-    -- Criar novo usuário diretamente com confirmação de e-mail imediata
+    -- Criar novo usuário com e-mail já confirmado
     IF p_senha IS NULL OR TRIM(p_senha) = '' THEN
       RETURN jsonb_build_object('success', false, 'error', 'Informe uma senha para o novo usuário.');
     END IF;
 
     v_user_id := gen_random_uuid();
-    v_encrypted_password := crypt(p_senha, gen_salt('bf'));
+    v_encrypted_password := extensions.crypt(p_senha, extensions.gen_salt('bf'));
 
     INSERT INTO auth.users (
       instance_id,
@@ -220,8 +221,7 @@ $$;
 
 GRANT EXECUTE ON FUNCTION public.admin_salvar_usuario(TEXT, TEXT, TEXT, TEXT, UUID, TEXT, TEXT) TO authenticated, anon;
 
--- 3. CRIAÇÃO/REGULARIZAÇÃO IMEDIATA DA CLÍNICA 'CSF JURANDIR CARVALHO'
--- Define a senha provisória padrão '123456' (pode ser alterada a qualquer momento no Painel Admin)
+-- 4. ATIVAÇÃO IMEDIATA DO ACESSO DA CLÍNICA 'CSF JURANDIR CARVALHO'
 SELECT public.admin_salvar_usuario(
   'jurandir@amlaudos.com',
   '123456',
