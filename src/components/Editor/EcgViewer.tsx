@@ -37,17 +37,23 @@ export const EcgViewer: React.FC<EcgViewerProps> = ({ exam }) => {
 
   // Recuperar arquivo do IndexedDB caso não esteja em memória
   useEffect(() => {
-    if (exam.fileDataUrl || exam.fileUrl) {
-      setFileContent(exam.fileDataUrl || exam.fileUrl || null);
+    const rawUrl = exam.fileDataUrl || exam.fileUrl;
+    if (rawUrl && !rawUrl.includes('laudos.amlaudos.com.br')) {
+      setFileContent(rawUrl);
       return;
     }
 
     setIsLoadingFile(true);
     getExamFile(exam.id, exam.fileName)
       .then(stored => {
-        if (stored?.dataUrl) {
+        if (stored?.dataUrl && !stored.dataUrl.includes('laudos.amlaudos.com.br')) {
           setFileContent(stored.dataUrl);
+        } else {
+          setFileContent(null);
         }
+      })
+      .catch(() => {
+        setFileContent(null);
       })
       .finally(() => {
         setIsLoadingFile(false);
@@ -56,7 +62,7 @@ export const EcgViewer: React.FC<EcgViewerProps> = ({ exam }) => {
 
   // Converter dataUrl em blobUrl para compatibilidade nativa com o leitor de PDF do navegador
   useEffect(() => {
-    if (!fileContent) {
+    if (!fileContent || fileContent.includes('laudos.amlaudos.com.br')) {
       setBlobUrl(null);
       return;
     }

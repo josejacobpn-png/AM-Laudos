@@ -75,6 +75,9 @@ export function mapRemoteExamToLocal(row: any): Exam {
     remainingMinutes = Math.max(0, (row.sla_minutos_total || 120) - elapsedMinutes);
   }
 
+  const rawUrl = row.arquivo_url && !row.arquivo_url.includes('laudos.amlaudos.com.br') ? row.arquivo_url : undefined;
+  const isData = rawUrl?.startsWith('data:') || false;
+
   return {
     id: row.id,
     protocolNumber: row.protocolo,
@@ -89,8 +92,8 @@ export function mapRemoteExamToLocal(row: any): Exam {
     fileSize: row.arquivo_tamanho || '1.0 MB',
     fileType: row.arquivo_tipo || 'PDF',
     simulatedEcgType: row.simulacao_tipo_ecg || 'NORMAL',
-    fileUrl: row.arquivo_url,
-    fileDataUrl: row.arquivo_url?.startsWith('data:') ? row.arquivo_url : undefined,
+    fileUrl: rawUrl,
+    fileDataUrl: isData ? rawUrl : undefined,
     lockedByDoctor: row.bloqueado_por_id ? 'Em análise por outro médico' : undefined,
     report,
     patient: {
@@ -211,23 +214,18 @@ export async function saveExamToSupabase(exam: Exam): Promise<boolean> {
     }
 
     // 2. Salvar arquivo pesado no IndexedDB local para carregamento instantâneo
-    let remoteArquivoUrl = exam.fileUrl || '';
+    let remoteArquivoUrl = exam.fileDataUrl || exam.fileUrl || '';
+    if (remoteArquivoUrl.includes('laudos.amlaudos.com.br')) {
+      remoteArquivoUrl = '';
+    }
+
     if (exam.fileDataUrl) {
       try {
         await saveExamFile(examId, exam.fileName, exam.fileType, exam.fileDataUrl, exam.fileSize);
       } catch (e) {
         console.warn('Erro ao salvar em IndexedDB local:', e);
       }
-      // Se for Data URL longa (> 2000 chars), não inflar o banco para evitar 413 Payload Too Large
-      if (exam.fileDataUrl.length > 2000) {
-        remoteArquivoUrl = `https://laudos.amlaudos.com.br/arquivos/${examId}.pdf`;
-      } else {
-        remoteArquivoUrl = exam.fileDataUrl;
-      }
-    }
-
-    if (!remoteArquivoUrl) {
-      remoteArquivoUrl = 'https://laudos.amlaudos.com.br/arquivos/ecg_padrao.pdf';
+      remoteArquivoUrl = exam.fileDataUrl;
     }
 
     // 3. Tentar via RPC seguro 'salvar_exame_completo' (atômico e com privilégios de banco)

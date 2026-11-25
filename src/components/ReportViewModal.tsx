@@ -34,25 +34,27 @@ export const ReportViewModal: React.FC<ReportViewModalProps> = ({
   useEffect(() => {
     if (!exam) return;
 
-    if (exam.fileDataUrl || exam.fileUrl) {
-      const url = exam.fileDataUrl || exam.fileUrl || '';
-      setExamFileUrl(url);
+    const rawUrl = exam.fileDataUrl || exam.fileUrl;
+    if (rawUrl && !rawUrl.includes('laudos.amlaudos.com.br')) {
+      setExamFileUrl(rawUrl);
       setIsExamImage(
         exam.fileType === 'IMAGE' || 
         Boolean(exam.fileName?.match(/\.(png|jpe?g|webp|bmp|gif)$/i)) || 
-        url.startsWith('data:image/')
+        rawUrl.startsWith('data:image/')
       );
       return;
     }
 
     getExamFile(exam.id, exam.fileName).then(stored => {
-      if (stored?.dataUrl) {
+      if (stored?.dataUrl && !stored.dataUrl.includes('laudos.amlaudos.com.br')) {
         setExamFileUrl(stored.dataUrl);
         setIsExamImage(
           exam.fileType === 'IMAGE' || 
           Boolean(exam.fileName?.match(/\.(png|jpe?g|webp|bmp|gif)$/i)) || 
           stored.dataUrl.startsWith('data:image/')
         );
+      } else {
+        setExamFileUrl(null);
       }
     });
   }, [exam]);

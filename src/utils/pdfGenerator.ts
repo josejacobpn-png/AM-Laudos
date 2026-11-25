@@ -242,6 +242,9 @@ export async function generateCompleteLaudoPdfBytes(exam: Exam, report: Report):
 
   // 2. Tenta recuperar o traçado do exame (IndexedDB ou memória)
   let initialUrl = exam.fileDataUrl || exam.fileUrl;
+  if (initialUrl && initialUrl.includes('laudos.amlaudos.com.br')) {
+    initialUrl = undefined;
+  }
   if (!initialUrl) {
     try {
       const stored = await getExamFile(exam.id, exam.fileName);
