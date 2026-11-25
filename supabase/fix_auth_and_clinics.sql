@@ -1,83 +1,83 @@
 -- ==============================================================================
--- AM LAUDOS - CORREÇÃO DE AUTENTICAÇÃO E CADASTRO DE CLÍNICAS/MÉDICOS
--- ==============================================================================
--- Este script:
--- 1. Garante que pgcrypto esteja no schema 'extensions'.
--- 2. Corrige o trigger 'handle_new_user' para evitar erro 500 no Supabase Auth.
--- 3. Cria a função RPC 'admin_salvar_usuario' que cadastra/atualiza usuários
---    já com o e-mail confirmado imediatamente (sem bloqueio de confirmação de e-mail).
--- 4. Cadastra/ativa o acesso da clínica 'CSF JURANDIR CARVALHO' (jurandir@amlaudos.com).
+-- AM LAUDOS - CORREÇÃO COMPLETA DE AUTENTICAÇÃO DO SUPABASE (GOTRUE)
+-- Resolve o erro "Database error querying schema" preenchendo as colunas de token
+-- exigidas pelo GoTrue e criando o registro correspondente em auth.identities.
 -- ==============================================================================
 
-CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA extensions;
+-- 1. CORREÇÃO DAS COLUNAS DE TEXTO DO GOTRUE (Elimina o erro "Database error querying schema")
+UPDATE auth.users
+SET 
+    confirmation_token = COALESCE(confirmation_token, ''),
+    recovery_token = COALESCE(recovery_token, ''),
+    email_change = COALESCE(email_change, ''),
+    email_change_token_new = COALESCE(email_change_token_new, ''),
+    email_change_token_current = COALESCE(email_change_token_current, ''),
+    reauthentication_token = COALESCE(reauthentication_token, ''),
+    phone = COALESCE(phone, ''),
+    phone_change = COALESCE(phone_change, ''),
+    phone_change_token = COALESCE(phone_change_token, ''),
+    is_sso_user = COALESCE(is_sso_user, false),
+    email_confirmed_at = COALESCE(email_confirmed_at, NOW())
+WHERE email = 'jurandir@amlaudos.com';
 
--- 1. CORREÇÃO DO TRIGGER DE CRIAÇÃO AUTOMÁTICA DE PERFIL
-CREATE OR REPLACE FUNCTION public.handle_new_user()
-RETURNS trigger AS $$
-DECLARE
-  v_tipo tipo_usuario;
-  v_crm VARCHAR;
-  v_uf VARCHAR;
-  v_especialidade VARCHAR;
-  v_clinica_id UUID;
-BEGIN
-  IF (new.raw_user_meta_data->>'tipo') IS NOT NULL THEN
-    BEGIN
-      v_tipo := (new.raw_user_meta_data->>'tipo')::tipo_usuario;
-    EXCEPTION WHEN OTHERS THEN
-      v_tipo := 'TECNICO_CLINICA'::tipo_usuario;
-    END;
-  ELSIF new.email = 'g2autodev@gmail.com' OR new.email ILIKE '%admin%' THEN
-    v_tipo := 'ADMIN'::tipo_usuario;
-  ELSIF (new.raw_user_meta_data->>'crm') IS NOT NULL OR new.email ILIKE '%medico%' OR new.email ILIKE '%cardio%' OR new.email ILIKE '%dr%' THEN
-    v_tipo := 'MEDICO_LAUDISTA'::tipo_usuario;
-  ELSE
-    v_tipo := 'TECNICO_CLINICA'::tipo_usuario;
-  END IF;
-
-  v_crm := new.raw_user_meta_data->>'crm';
-  v_uf := new.raw_user_meta_data->>'uf_crm';
-  v_especialidade := COALESCE(new.raw_user_meta_data->>'especialidade', 'Cardiologia Clínica');
-  
-  BEGIN
-    v_clinica_id := NULLIF(new.raw_user_meta_data->>'clinica_id', '')::UUID;
-  EXCEPTION WHEN OTHERS THEN
-    v_clinica_id := NULL;
-  END;
-
-  INSERT INTO public.perfis (id, nome_completo, tipo, crm, uf_crm, especialidade, clinica_id, created_at, updated_at)
-  VALUES (
-    new.id,
-    COALESCE(new.raw_user_meta_data->>'nome_completo', split_part(new.email, '@', 1)),
-    v_tipo,
-    v_crm,
-    v_uf,
-    v_especialidade,
-    v_clinica_id,
+-- 2. REGISTRAR IDENTIDADE NO auth.identities (Obrigatório para o GoTrue)
+INSERT INTO auth.identities (
+    id,
+    user_id,
+    identity_data,
+    provider,
+    provider_id,
+    last_sign_in_at,
+    created_at,
+    updated_at
+)
+SELECT 
+    id::text,
+    id,
+    jsonb_build_object('sub', id::text, 'email', LOWER(email)),
+    'email',
+    id::text,
+    NOW(),
     NOW(),
     NOW()
-  )
-  ON CONFLICT (id) DO UPDATE SET
-    tipo = EXCLUDED.tipo,
-    nome_completo = COALESCE(EXCLUDED.nome_completo, public.perfis.nome_completo),
-    crm = COALESCE(EXCLUDED.crm, public.perfis.crm),
-    uf_crm = COALESCE(EXCLUDED.uf_crm, public.perfis.uf_crm),
-    especialidade = COALESCE(EXCLUDED.especialidade, public.perfis.especialidade),
-    clinica_id = COALESCE(EXCLUDED.clinica_id, public.perfis.clinica_id),
+FROM auth.users
+WHERE email = 'jurandir@amlaudos.com'
+ON CONFLICT (provider, provider_id) DO NOTHING;
+
+-- 3. GARANTIR A SENHA '123456' E O PERFIL DA CLÍNICA
+UPDATE auth.users
+SET 
+    encrypted_password = extensions.crypt('123456', extensions.gen_salt('bf')),
+    email_confirmed_at = NOW(),
+    updated_at = NOW()
+WHERE email = 'jurandir@amlaudos.com';
+
+INSERT INTO public.perfis (
+    id,
+    nome_completo,
+    tipo,
+    clinica_id,
+    ativo,
+    created_at,
+    updated_at
+)
+SELECT 
+    u.id,
+    'CSF JURANDIR CARVALHO',
+    'TECNICO_CLINICA'::tipo_usuario,
+    '771769a3-ab20-48eb-a07c-ec30a688900f'::uuid,
+    true,
+    NOW(),
+    NOW()
+FROM auth.users u
+WHERE u.email = 'jurandir@amlaudos.com'
+ON CONFLICT (id) DO UPDATE SET
+    tipo = 'TECNICO_CLINICA'::tipo_usuario,
+    clinica_id = '771769a3-ab20-48eb-a07c-ec30a688900f'::uuid,
+    ativo = true,
     updated_at = NOW();
 
-  RETURN new;
-EXCEPTION WHEN OTHERS THEN
-  RETURN new;
-END;
-$$ LANGUAGE plpgsql SECURITY DEFINER SET search_path = public, auth, extensions;
-
-DROP TRIGGER IF EXISTS on_auth_user_created ON auth.users;
-CREATE TRIGGER on_auth_user_created
-  AFTER INSERT ON auth.users
-  FOR EACH ROW EXECUTE FUNCTION public.handle_new_user();
-
--- 2. FUNÇÃO ADMINISTRATIVA DE CRIAÇÃO E ATUALIZAÇÃO IMEDIATA DE USUÁRIOS
+-- 4. ATUALIZAR FUNÇÃO ADMIN_SALVAR_USUARIO COM SUPORTE TOTAL AO GOTRUE
 CREATE OR REPLACE FUNCTION public.admin_salvar_usuario(
   p_email TEXT,
   p_senha TEXT,
@@ -100,21 +100,27 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'E-mail não pode ser vazio.');
   END IF;
 
-  IF p_senha IS NOT NULL AND length(p_senha) < 6 THEN
-    RETURN jsonb_build_object('success', false, 'error', 'A senha deve conter no mínimo 6 caracteres.');
-  END IF;
-
   SELECT id INTO v_user_id 
   FROM auth.users 
   WHERE LOWER(email) = LOWER(TRIM(p_email));
 
   IF v_user_id IS NOT NULL THEN
-    -- Atualizar usuário existente (senha e dados)
-    IF p_senha IS NOT NULL AND TRIM(p_senha) <> '' THEN
+    -- Atualizar senha e garantir colunas limpas para o GoTrue
+    IF p_senha IS NOT NULL AND length(p_senha) >= 6 THEN
       UPDATE auth.users
       SET 
         encrypted_password = extensions.crypt(p_senha, extensions.gen_salt('bf')),
         email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
+        confirmation_token = COALESCE(confirmation_token, ''),
+        recovery_token = COALESCE(recovery_token, ''),
+        email_change = COALESCE(email_change, ''),
+        email_change_token_new = COALESCE(email_change_token_new, ''),
+        email_change_token_current = COALESCE(email_change_token_current, ''),
+        reauthentication_token = COALESCE(reauthentication_token, ''),
+        phone = COALESCE(phone, ''),
+        phone_change = COALESCE(phone_change, ''),
+        phone_change_token = COALESCE(phone_change_token, ''),
+        is_sso_user = COALESCE(is_sso_user, false),
         raw_user_meta_data = jsonb_build_object(
           'nome_completo', p_nome,
           'tipo', p_tipo,
@@ -128,6 +134,16 @@ BEGIN
       UPDATE auth.users
       SET 
         email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
+        confirmation_token = COALESCE(confirmation_token, ''),
+        recovery_token = COALESCE(recovery_token, ''),
+        email_change = COALESCE(email_change, ''),
+        email_change_token_new = COALESCE(email_change_token_new, ''),
+        email_change_token_current = COALESCE(email_change_token_current, ''),
+        reauthentication_token = COALESCE(reauthentication_token, ''),
+        phone = COALESCE(phone, ''),
+        phone_change = COALESCE(phone_change, ''),
+        phone_change_token = COALESCE(phone_change_token, ''),
+        is_sso_user = COALESCE(is_sso_user, false),
         raw_user_meta_data = jsonb_build_object(
           'nome_completo', p_nome,
           'tipo', p_tipo,
@@ -138,10 +154,32 @@ BEGIN
         updated_at = NOW()
       WHERE id = v_user_id;
     END IF;
+
+    -- Garantir identidade no auth.identities
+    INSERT INTO auth.identities (
+      id,
+      user_id,
+      identity_data,
+      provider,
+      provider_id,
+      last_sign_in_at,
+      created_at,
+      updated_at
+    ) VALUES (
+      v_user_id::text,
+      v_user_id,
+      jsonb_build_object('sub', v_user_id::text, 'email', LOWER(TRIM(p_email))),
+      'email',
+      v_user_id::text,
+      NOW(),
+      NOW(),
+      NOW()
+    ) ON CONFLICT (provider, provider_id) DO NOTHING;
+
   ELSE
-    -- Criar novo usuário com e-mail já confirmado
-    IF p_senha IS NULL OR TRIM(p_senha) = '' THEN
-      RETURN jsonb_build_object('success', false, 'error', 'Informe uma senha para o novo usuário.');
+    -- Criar novo usuário com todas as colunas de texto preenchidas para o GoTrue
+    IF p_senha IS NULL OR length(p_senha) < 6 THEN
+      RETURN jsonb_build_object('success', false, 'error', 'Informe uma senha com no mínimo 6 caracteres para o novo usuário.');
     END IF;
 
     v_user_id := gen_random_uuid();
@@ -155,12 +193,20 @@ BEGIN
       email,
       encrypted_password,
       email_confirmed_at,
+      confirmation_token,
+      recovery_token,
+      email_change,
+      email_change_token_new,
+      email_change_token_current,
+      reauthentication_token,
+      phone,
+      phone_change,
+      phone_change_token,
+      is_sso_user,
       raw_app_meta_data,
       raw_user_meta_data,
       created_at,
-      updated_at,
-      confirmation_token,
-      recovery_token
+      updated_at
     ) VALUES (
       '00000000-0000-0000-0000-000000000000',
       v_user_id,
@@ -169,6 +215,16 @@ BEGIN
       LOWER(TRIM(p_email)),
       v_encrypted_password,
       NOW(),
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      '',
+      false,
       '{"provider":"email","providers":["email"]}',
       jsonb_build_object(
         'nome_completo', p_nome,
@@ -178,13 +234,31 @@ BEGIN
         'uf_crm', p_uf
       ),
       NOW(),
-      NOW(),
-      '',
-      ''
+      NOW()
     );
+
+    INSERT INTO auth.identities (
+      id,
+      user_id,
+      identity_data,
+      provider,
+      provider_id,
+      last_sign_in_at,
+      created_at,
+      updated_at
+    ) VALUES (
+      v_user_id::text,
+      v_user_id,
+      jsonb_build_object('sub', v_user_id::text, 'email', LOWER(TRIM(p_email))),
+      'email',
+      v_user_id::text,
+      NOW(),
+      NOW(),
+      NOW()
+    ) ON CONFLICT (provider, provider_id) DO NOTHING;
   END IF;
 
-  -- 3. Atualizar ou inserir na tabela public.perfis
+  -- Inserir / Atualizar perfil
   INSERT INTO public.perfis (
     id,
     nome_completo,
@@ -220,12 +294,3 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.admin_salvar_usuario(TEXT, TEXT, TEXT, TEXT, UUID, TEXT, TEXT) TO authenticated, anon;
-
--- 4. ATIVAÇÃO IMEDIATA DO ACESSO DA CLÍNICA 'CSF JURANDIR CARVALHO'
-SELECT public.admin_salvar_usuario(
-  'jurandir@amlaudos.com',
-  '123456',
-  'CSF JURANDIR CARVALHO',
-  'TECNICO_CLINICA',
-  '771769a3-ab20-48eb-a07c-ec30a688900f'
-);
