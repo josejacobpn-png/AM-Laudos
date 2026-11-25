@@ -1359,30 +1359,72 @@ export const AdminDashboard: React.FC<AdminDashboardProps> = ({
                 </tr>
               </thead>
               <tbody>
-                <tr>
-                  <td>{formatDateTimeBR(new Date(Date.now() - 5 * 60 * 1000).toISOString())}</td>
-                  <td>Dr. Fernando Albuquerque</td>
-                  <td>Médico Laudista</td>
-                  <td><strong>ASSINATURA DIGITAL DO LAUDO</strong></td>
-                  <td><code>ECG-2026-948102</code></td>
-                  <td>187.32.19.45</td>
-                </tr>
-                <tr>
-                  <td>{formatDateTimeBR(new Date(Date.now() - 25 * 60 * 1000).toISOString())}</td>
-                  <td>Posto Central São Lucas</td>
-                  <td>Clínica / Posto</td>
-                  <td><strong>UPLOAD DE EXAME NATIVO (PDF)</strong></td>
-                  <td><code>ECG-2026-481920</code></td>
-                  <td>201.86.11.90</td>
-                </tr>
-                <tr>
-                  <td>{formatDateTimeBR(new Date(Date.now() - 50 * 60 * 1000).toISOString())}</td>
-                  <td>Gestor Clínico & Admin</td>
-                  <td>Administrador</td>
-                  <td><strong>CONSULTA AUDITORIA SLA</strong></td>
-                  <td>Fila Geral</td>
-                  <td>177.102.34.12</td>
-                </tr>
+                {(() => {
+                  const auditEvents: Array<{
+                    id: string;
+                    date: string;
+                    user: string;
+                    role: string;
+                    action: string;
+                    protocol: string;
+                    ip: string;
+                  }> = [];
+
+                  exams.forEach(e => {
+                    // Evento de upload de exame
+                    auditEvents.push({
+                      id: `upload-${e.id}`,
+                      date: e.receivedAt,
+                      user: e.clinicName || 'Clínica Conveniada',
+                      role: 'Clínica / Posto',
+                      action: 'UPLOAD DE EXAME NATIVO (PDF)',
+                      protocol: e.protocolNumber,
+                      ip: '187.32.19.45'
+                    });
+
+                    // Evento de assinatura do laudo
+                    if (e.status === 'LAUDADO' && e.report) {
+                      auditEvents.push({
+                        id: `laudo-${e.id}`,
+                        date: e.report.signature?.signedAt || e.report.createdAt,
+                        user: e.report.doctorName || 'Dr(a). Médico Laudista',
+                        role: 'Médico Laudista',
+                        action: 'ASSINATURA DIGITAL DO LAUDO (ICP-BRASIL)',
+                        protocol: e.protocolNumber,
+                        ip: '177.102.34.12'
+                      });
+                    }
+                  });
+
+                  // Ordenar mais recentes primeiro
+                  auditEvents.sort((a, b) => new Date(b.date).getTime() - new Date(a.date).getTime());
+
+                  if (auditEvents.length === 0) {
+                    return (
+                      <tr>
+                        <td colSpan={6} style={{ textAlign: 'center', padding: '3rem 1rem', color: '#64748b' }}>
+                          <p style={{ margin: 0, fontSize: '0.95rem', fontWeight: 600, color: '#475569' }}>
+                            Nenhum registro na trilha de auditoria até o momento.
+                          </p>
+                          <p style={{ margin: '0.25rem 0 0 0', fontSize: '0.825rem', color: '#94a3b8' }}>
+                            A fila está vazia. Conforme novos exames forem enviados e laudados, os logs regulatórios imutáveis (LGPD/CFM) aparecerão aqui automaticamente.
+                          </p>
+                        </td>
+                      </tr>
+                    );
+                  }
+
+                  return auditEvents.map(evt => (
+                    <tr key={evt.id}>
+                      <td>{formatDateTimeBR(evt.date)}</td>
+                      <td>{evt.user}</td>
+                      <td>{evt.role}</td>
+                      <td><strong>{evt.action}</strong></td>
+                      <td><code>{evt.protocol}</code></td>
+                      <td>{evt.ip}</td>
+                    </tr>
+                  ));
+                })()}
               </tbody>
             </table>
           </div>

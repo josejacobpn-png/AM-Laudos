@@ -61,15 +61,15 @@ function MainAppContent() {
 
   const [exams, setExams] = useState<Exam[]>(() => {
     // Purga automática dos exames de teste da versão de desenvolvimento
-    if (localStorage.getItem('am_laudos_exams_v2')) {
-      localStorage.removeItem('am_laudos_exams_v2');
-      try {
-        indexedDB.deleteDatabase('am_laudos_files_db');
-      } catch (e) {
-        console.warn(e);
-      }
+    localStorage.removeItem('am_laudos_exams_v1');
+    localStorage.removeItem('am_laudos_exams_v2');
+    localStorage.removeItem('am_laudos_exams_v3');
+    try {
+      indexedDB.deleteDatabase('am_laudos_files_db');
+    } catch (e) {
+      console.warn(e);
     }
-    const saved = localStorage.getItem('am_laudos_exams_v3');
+    const saved = localStorage.getItem('am_laudos_exams_v4');
     if (saved) {
       try {
         return JSON.parse(saved);
@@ -106,7 +106,7 @@ function MainAppContent() {
         const { fileDataUrl, ...rest } = e;
         return rest;
       });
-      localStorage.setItem('am_laudos_exams_v3', JSON.stringify(sanitizedExams));
+      localStorage.setItem('am_laudos_exams_v4', JSON.stringify(sanitizedExams));
     } catch (e) {
       console.warn('Aviso ao sincronizar exames no localStorage:', e);
     }
@@ -204,23 +204,7 @@ function MainAppContent() {
     try {
       const remoteExams = await fetchExamsFromSupabase();
       if (remoteExams !== null) {
-        setExams(prev => {
-          // Se não há exames no banco e não há locais, lista vazia
-          if (remoteExams.length === 0 && prev.length === 0) return [];
-
-          const map = new Map<string, Exam>();
-          // Exames remotos têm precedência (atualizados pelo servidor/banco)
-          remoteExams.forEach(e => map.set(e.id, e));
-
-          // Preservar eventuais exames locais pendentes de envio
-          prev.forEach(e => {
-            if (!map.has(e.id)) {
-              map.set(e.id, e);
-            }
-          });
-
-          return Array.from(map.values());
-        });
+        setExams(remoteExams);
       }
     } catch (err) {
       console.warn('Aviso ao sincronizar exames remotos:', err);
