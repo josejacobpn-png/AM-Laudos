@@ -1,6 +1,6 @@
 -- ==============================================================================
 -- AM LAUDOS - SCRIPT DE LIMPEZA DE DADOS DE TESTE (PRODUÇÃO)
--- Finalidade: Zerar exames, laudos, pacientes e arquivos de teste para início de operação real.
+-- Finalidade: Zerar exames, laudos e pacientes de teste para início de operação real.
 --
 -- PRESERVA INTACTOS:
 --   ✔ Clínicas cadastradas (tabela 'clinicas')
@@ -13,13 +13,13 @@
 --   ✖ Laudos médicos emitidos durante testes (tabela 'laudos')
 --   ✖ Exames e traçados da fila (tabela 'exames')
 --   ✖ Pacientes fictícios de teste (tabela 'pacientes')
---   ✖ Arquivos/PDFs de teste nos buckets de storage ('exames' e 'laudos')
---   ✖ Logs de auditoria vinculados a esses testes (opcional)
+--   ✖ Logs de auditoria vinculados a esses testes
 --
--- COMO EXECUTAR NO SUPABASE:
---   1. Acesse o painel do Supabase: https://supabase.com/dashboard/project/giexcrlytwgnfyaaunjl
---   2. No menu lateral esquerdo, clique em "SQL Editor".
---   3. Cole este script e clique no botão verde "Run" (ou pressione Ctrl+Enter).
+-- NOTA SOBRE STORAGE:
+--   O Supabase bloqueia a exclusão direta via SQL na tabela 'storage.objects'
+--   por segurança interna (trigger storage.protect_delete). 
+--   Caso haja arquivos na aba Storage do painel, eles podem ser excluídos
+--   diretamente pela interface do Supabase Storage.
 -- ==============================================================================
 
 BEGIN;
@@ -36,11 +36,7 @@ DELETE FROM public.exames;
 -- 4. Excluir pacientes criados durante os testes
 DELETE FROM public.pacientes;
 
--- 5. Excluir arquivos de teste anexados aos buckets do Supabase Storage
-DELETE FROM storage.objects 
-WHERE bucket_id IN ('exames', 'laudos');
-
--- 6. Limpar logs de auditoria referentes às tabelas de teste
+-- 5. Limpar logs de auditoria referentes às tabelas de teste
 DELETE FROM public.logs_auditoria 
 WHERE tabela_alvo IN ('exames', 'laudos', 'assinaturas_digitais', 'pacientes');
 
@@ -54,6 +50,5 @@ SELECT
     (SELECT COUNT(*) FROM public.laudos) AS total_laudos,
     (SELECT COUNT(*) FROM public.assinaturas_digitais) AS total_assinaturas,
     (SELECT COUNT(*) FROM public.pacientes) AS total_pacientes,
-    (SELECT COUNT(*) FROM storage.objects WHERE bucket_id IN ('exames', 'laudos')) AS total_arquivos_storage,
     (SELECT COUNT(*) FROM public.clinicas) AS clinicas_preservadas,
     (SELECT COUNT(*) FROM public.perfis) AS perfis_preservados;
