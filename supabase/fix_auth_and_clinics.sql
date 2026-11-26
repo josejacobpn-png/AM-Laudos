@@ -1,13 +1,13 @@
 -- ==============================================================================
 -- AM LAUDOS - CORREÇÃO DEFINITIVA DO GOTRUE E FUNÇÃO ADMIN_SALVAR_USUARIO
--- Elimina para sempre o erro 'Database error querying schema' em novas clínicas
+-- Elimina para sempre o erro 'Database error querying schema' e 'users_phone_key'
 -- ==============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA extensions;
 
 -- ------------------------------------------------------------------------------
 -- 1. CORRIGIR TODOS OS USUÁRIOS ATUAIS NO SUPABASE AUTH (auth.users)
--- Preenche as colunas de token que o GoTrue exige como String não-nula
+-- Tokens como String não-nula, e 'phone' como NULL (para respeitar a constraint UNIQUE)
 -- ------------------------------------------------------------------------------
 UPDATE auth.users
 SET 
@@ -17,15 +17,17 @@ SET
     email_change_token_new = COALESCE(email_change_token_new, ''),
     email_change_token_current = COALESCE(email_change_token_current, ''),
     reauthentication_token = COALESCE(reauthentication_token, ''),
-    phone = COALESCE(phone, ''),
-    phone_change = COALESCE(phone_change, ''),
-    phone_change_token = COALESCE(phone_change_token, ''),
+    phone = NULL,
+    phone_change = NULL,
+    phone_change_token = NULL,
     is_sso_user = COALESCE(is_sso_user, false),
     email_confirmed_at = COALESCE(email_confirmed_at, NOW())
 WHERE confirmation_token IS NULL 
    OR recovery_token IS NULL 
    OR email_change IS NULL 
-   OR phone IS NULL;
+   OR phone = ''
+   OR phone_change = ''
+   OR phone_change_token = '';
 
 -- ------------------------------------------------------------------------------
 -- 2. GARANTIR A IDENTIDADE (auth.identities) PARA TODOS OS USUÁRIOS EXISTENTES
@@ -107,9 +109,9 @@ BEGIN
         email_change_token_new = COALESCE(email_change_token_new, ''),
         email_change_token_current = COALESCE(email_change_token_current, ''),
         reauthentication_token = COALESCE(reauthentication_token, ''),
-        phone = COALESCE(phone, ''),
-        phone_change = COALESCE(phone_change, ''),
-        phone_change_token = COALESCE(phone_change_token, ''),
+        phone = NULL,
+        phone_change = NULL,
+        phone_change_token = NULL,
         is_sso_user = COALESCE(is_sso_user, false),
         raw_user_meta_data = jsonb_build_object(
           'nome_completo', p_nome,
@@ -130,9 +132,9 @@ BEGIN
         email_change_token_new = COALESCE(email_change_token_new, ''),
         email_change_token_current = COALESCE(email_change_token_current, ''),
         reauthentication_token = COALESCE(reauthentication_token, ''),
-        phone = COALESCE(phone, ''),
-        phone_change = COALESCE(phone_change, ''),
-        phone_change_token = COALESCE(phone_change_token, ''),
+        phone = NULL,
+        phone_change = NULL,
+        phone_change_token = NULL,
         is_sso_user = COALESCE(is_sso_user, false),
         raw_user_meta_data = jsonb_build_object(
           'nome_completo', p_nome,
@@ -145,7 +147,7 @@ BEGIN
       WHERE id = v_user_id;
     END IF;
   ELSE
-    -- 2. Criar novo usuário diretamente com confirmação de e-mail imediata
+    -- 2. Criar novo usuário com confirmação de e-mail imediata e tokens sanitizados
     IF p_senha IS NULL OR TRIM(p_senha) = '' THEN
       RETURN jsonb_build_object('success', false, 'error', 'Informe uma senha para o novo usuário.');
     END IF;
@@ -171,9 +173,6 @@ BEGIN
       email_change_token_new,
       email_change_token_current,
       reauthentication_token,
-      phone,
-      phone_change,
-      phone_change_token,
       is_sso_user
     ) VALUES (
       '00000000-0000-0000-0000-000000000000',
@@ -193,20 +192,11 @@ BEGIN
       ),
       NOW(),
       NOW(),
-      '', -- confirmation_token
-      '', -- recovery_token
-      '', -- email_change
-      '', -- email_change_token_new
-      '', -- email_change_token_current
-      '', -- reauthentication_token
-      '', -- phone
-      '', -- phone_change
-      '', -- phone_change_token
-      false -- is_sso_user
+      '', '', '', '', '', '', false
     );
   END IF;
 
-  -- 3. Inserir ou atualizar na tabela auth.identities (obrigatório para o GoTrue)
+  -- 3. Inserir ou atualizar na tabela auth.identities
   INSERT INTO auth.identities (
     id,
     user_id,

@@ -30,7 +30,7 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'Usuário não encontrado no Supabase Auth com este e-mail.');
   END IF;
 
-  -- 1. Atualizar senha e regularizar tokens do GoTrue
+  -- 1. Atualizar senha e regularizar tokens do GoTrue (phone deve ser NULL devido a constraint UNIQUE)
   UPDATE auth.users
   SET 
     encrypted_password = extensions.crypt(nova_senha, extensions.gen_salt('bf')),
@@ -41,9 +41,9 @@ BEGIN
     email_change_token_new = COALESCE(email_change_token_new, ''),
     email_change_token_current = COALESCE(email_change_token_current, ''),
     reauthentication_token = COALESCE(reauthentication_token, ''),
-    phone = COALESCE(phone, ''),
-    phone_change = COALESCE(phone_change, ''),
-    phone_change_token = COALESCE(phone_change_token, ''),
+    phone = NULL,
+    phone_change = NULL,
+    phone_change_token = NULL,
     is_sso_user = COALESCE(is_sso_user, false),
     updated_at = NOW()
   WHERE id = v_user_id;
