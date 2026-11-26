@@ -1,13 +1,18 @@
 -- ==============================================================================
 -- AM LAUDOS - CORREÇÃO DEFINITIVA DO GOTRUE E FUNÇÃO ADMIN_SALVAR_USUARIO
--- Elimina para sempre o erro 'Database error querying schema' e 'users_phone_key'
 -- ==============================================================================
 
 CREATE EXTENSION IF NOT EXISTS "pgcrypto" WITH SCHEMA extensions;
 
 -- ------------------------------------------------------------------------------
--- 1. CORRIGIR TODOS OS USUÁRIOS ATUAIS NO SUPABASE AUTH (auth.users)
--- Tokens como String não-nula, e 'phone' como NULL (para respeitar a constraint UNIQUE)
+-- 1. DESVINCULAR QUALQUER STRING VAZIA EM 'phone' (evita users_phone_key)
+-- ------------------------------------------------------------------------------
+UPDATE auth.users
+SET phone = NULL
+WHERE phone = '';
+
+-- ------------------------------------------------------------------------------
+-- 2. PREENCHER COLUNAS DE STRING QUE O GOTRUE EXIGE NÃO-NULAS EM TODOS OS USUÁRIOS
 -- ------------------------------------------------------------------------------
 UPDATE auth.users
 SET 
@@ -17,21 +22,14 @@ SET
     email_change_token_new = COALESCE(email_change_token_new, ''),
     email_change_token_current = COALESCE(email_change_token_current, ''),
     reauthentication_token = COALESCE(reauthentication_token, ''),
-    phone = NULL,
-    phone_change = NULL,
-    phone_change_token = NULL,
+    phone_change = COALESCE(phone_change, ''),
+    phone_change_token = COALESCE(phone_change_token, ''),
     is_sso_user = COALESCE(is_sso_user, false),
-    email_confirmed_at = COALESCE(email_confirmed_at, NOW())
-WHERE confirmation_token IS NULL 
-   OR recovery_token IS NULL 
-   OR email_change IS NULL 
-   OR phone = ''
-   OR phone_change = ''
-   OR phone_change_token = '';
+    email_confirmed_at = COALESCE(email_confirmed_at, NOW());
 
 -- ------------------------------------------------------------------------------
--- 2. GARANTIR A IDENTIDADE (auth.identities) PARA TODOS OS USUÁRIOS EXISTENTES
--- O GoTrue exige uma linha em auth.identities vinculada ao user_id
+-- 3. CRIAR A IDENTIDADE (auth.identities) PARA TODOS OS USUÁRIOS QUE NÃO TÊM
+-- (Isso é o que elimina o erro 'Database error querying schema')
 -- ------------------------------------------------------------------------------
 INSERT INTO auth.identities (
     id,
@@ -59,8 +57,17 @@ WHERE NOT EXISTS (
 ON CONFLICT (provider, provider_id) DO NOTHING;
 
 -- ------------------------------------------------------------------------------
--- 3. REDEFINIR A FUNÇÃO admin_salvar_usuario DE FORMA 100% COMPATÍVEL COM O GOTRUE
--- Qualquer nova clínica ou médico criado no futuro já nasce com identity e tokens corretos
+-- 4. GARANTIR A SENHA PADRÃO '123456' PARA AS CLÍNICAS CRIADAS
+-- ------------------------------------------------------------------------------
+UPDATE auth.users
+SET 
+    encrypted_password = extensions.crypt('123456', extensions.gen_salt('bf')),
+    email_confirmed_at = NOW(),
+    updated_at = NOW()
+WHERE email IN ('coelce@amlaudos.com', 'sinha@amlaudos.com', 'jurandir@amlaudos.com');
+
+-- ------------------------------------------------------------------------------
+-- 5. ATUALIZAR A FUNÇÃO admin_salvar_usuario PARA NOVOS CADASTROS FUTUROS
 -- ------------------------------------------------------------------------------
 CREATE OR REPLACE FUNCTION public.admin_salvar_usuario(
   p_email TEXT,
@@ -91,7 +98,6 @@ BEGIN
     RETURN jsonb_build_object('success', false, 'error', 'A senha deve conter no mínimo 6 caracteres.');
   END IF;
 
-  -- Verificar se usuário já existe no auth.users
   SELECT id INTO v_user_id 
   FROM auth.users 
   WHERE LOWER(email) = v_clean_email;
@@ -110,8 +116,8 @@ BEGIN
         email_change_token_current = COALESCE(email_change_token_current, ''),
         reauthentication_token = COALESCE(reauthentication_token, ''),
         phone = NULL,
-        phone_change = NULL,
-        phone_change_token = NULL,
+        phone_change = COALESCE(phone_change, ''),
+        phone_change_token = COALESCE(phone_change_token, ''),
         is_sso_user = COALESCE(is_sso_user, false),
         raw_user_meta_data = jsonb_build_object(
           'nome_completo', p_nome,
@@ -133,8 +139,8 @@ BEGIN
         email_change_token_current = COALESCE(email_change_token_current, ''),
         reauthentication_token = COALESCE(reauthentication_token, ''),
         phone = NULL,
-        phone_change = NULL,
-        phone_change_token = NULL,
+        phone_change = COALESCE(phone_change, ''),
+        phone_change_token = COALESCE(phone_change_token, ''),
         is_sso_user = COALESCE(is_sso_user, false),
         raw_user_meta_data = jsonb_build_object(
           'nome_completo', p_nome,
@@ -147,7 +153,7 @@ BEGIN
       WHERE id = v_user_id;
     END IF;
   ELSE
-    -- 2. Criar novo usuário com confirmação de e-mail imediata e tokens sanitizados
+    -- 2. Criar novo usuário com confirmação imediata
     IF p_senha IS NULL OR TRIM(p_senha) = '' THEN
       RETURN jsonb_build_object('success', false, 'error', 'Informe uma senha para o novo usuário.');
     END IF;
@@ -173,6 +179,8 @@ BEGIN
       email_change_token_new,
       email_change_token_current,
       reauthentication_token,
+      phone_change,
+      phone_change_token,
       is_sso_user
     ) VALUES (
       '00000000-0000-0000-0000-000000000000',
@@ -192,7 +200,7 @@ BEGIN
       ),
       NOW(),
       NOW(),
-      '', '', '', '', '', '', false
+      '', '', '', '', '', '', '', '', false
     );
   END IF;
 
@@ -256,3 +264,74 @@ END;
 $$;
 
 GRANT EXECUTE ON FUNCTION public.admin_salvar_usuario(TEXT, TEXT, TEXT, TEXT, UUID, TEXT, TEXT) TO authenticated, anon;
+
+-- ------------------------------------------------------------------------------
+-- 6. ATUALIZAR A FUNÇÃO admin_alterar_senha_usuario
+-- ------------------------------------------------------------------------------
+CREATE OR REPLACE FUNCTION public.admin_alterar_senha_usuario(email_usuario TEXT, nova_senha TEXT)
+RETURNS JSONB
+LANGUAGE plpgsql
+SECURITY DEFINER
+SET search_path = public, auth, extensions
+AS $$
+DECLARE
+  v_user_id UUID;
+  v_clean_email TEXT;
+BEGIN
+  v_clean_email := LOWER(TRIM(email_usuario));
+
+  IF length(nova_senha) < 6 THEN
+    RETURN jsonb_build_object('success', false, 'error', 'A nova senha deve ter no mínimo 6 caracteres.');
+  END IF;
+
+  SELECT id INTO v_user_id 
+  FROM auth.users 
+  WHERE LOWER(email) = v_clean_email;
+
+  IF v_user_id IS NULL THEN
+    RETURN jsonb_build_object('success', false, 'error', 'Usuário não encontrado no Supabase Auth com este e-mail.');
+  END IF;
+
+  UPDATE auth.users
+  SET 
+    encrypted_password = extensions.crypt(nova_senha, extensions.gen_salt('bf')),
+    email_confirmed_at = COALESCE(email_confirmed_at, NOW()),
+    confirmation_token = COALESCE(confirmation_token, ''),
+    recovery_token = COALESCE(recovery_token, ''),
+    email_change = COALESCE(email_change, ''),
+    email_change_token_new = COALESCE(email_change_token_new, ''),
+    email_change_token_current = COALESCE(email_change_token_current, ''),
+    reauthentication_token = COALESCE(reauthentication_token, ''),
+    phone = NULL,
+    phone_change = COALESCE(phone_change, ''),
+    phone_change_token = COALESCE(phone_change_token, ''),
+    is_sso_user = COALESCE(is_sso_user, false),
+    updated_at = NOW()
+  WHERE id = v_user_id;
+
+  INSERT INTO auth.identities (
+    id,
+    user_id,
+    identity_data,
+    provider,
+    provider_id,
+    last_sign_in_at,
+    created_at,
+    updated_at
+  ) VALUES (
+    v_user_id,
+    v_user_id,
+    jsonb_build_object('sub', v_user_id::text, 'email', v_clean_email),
+    'email',
+    v_user_id::text,
+    NOW(),
+    NOW(),
+    NOW()
+  )
+  ON CONFLICT (provider, provider_id) DO NOTHING;
+
+  RETURN jsonb_build_object('success', true, 'message', 'Senha atualizada com sucesso.');
+END;
+$$;
+
+GRANT EXECUTE ON FUNCTION public.admin_alterar_senha_usuario(TEXT, TEXT) TO authenticated, anon;
